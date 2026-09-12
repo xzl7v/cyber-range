@@ -22,7 +22,7 @@ services:
     image: kasmweb/kali-rolling-desktop:1.16.0
     container_name: student-node
     ports:
-      - "6901:6901"
+      - "127.0.0.1:6901:6901"
     shm_size: '2gb'
     restart: unless-stopped
     environment:
@@ -80,4 +80,3 @@ networks:
   isolated-range:
     driver: bridge
     internal: true
-    
