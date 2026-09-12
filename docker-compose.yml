@@ -22,7 +22,7 @@ services:
     image: kasmweb/kali-rolling-desktop:1.16.0
     container_name: student-node
     ports:
-      - "6901:6901"
+      - "127.0.0.1:6901:6901"
     shm_size: '2gb'
     restart: unless-stopped
     environment:
@@ -50,8 +50,8 @@ services:
               count: all
               capabilities: [gpu]
     networks:
-      - isolated-range
-
+    - isolated-range
+    - frontend-net
   # عقدة الدكتور / المشرف
   doctor-node:
     image: kasmweb/kali-rolling-desktop:1.16.0
@@ -64,7 +64,10 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - isolated-range
-
+  environment:
+    - VNC_PW=StudentSecure2026!
+    - KASM_SVC_USER_PASSWORD=StudentSecure2026!
+    - NO_auth=1
   # مثال على هدف تدريبي معزول ينزله الدكتور (DVWA)
   target-dvwa:
     image: vulnerables/web-dvwa:latest
@@ -80,4 +83,3 @@ networks:
   isolated-range:
     driver: bridge
     internal: true
-    
