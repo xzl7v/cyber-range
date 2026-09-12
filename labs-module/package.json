@@ -1,0 +1,32 @@
+{
+  "name": "cyberpod-labs-module",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently --kill-others \"node --watch server/index.js --dev\" \"vite --host 127.0.0.1\"",
+    "build": "vite build",
+    "start": "node server/index.js --dev --serve-dist",
+    "test": "node --test tests/api/*.test.js",
+    "test:e2e": "playwright test",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "concurrently": "^10.0.5",
+    "eslint": "^10.10.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
+    "vite": "^8.3.0"
+  }
+}

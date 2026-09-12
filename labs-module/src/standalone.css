@@ -1,0 +1,12 @@
+/* Only the standalone entry imports these page defaults. */
+html, body, #root { margin: 0; min-height: 100%; }
+body { background: #f6f7f9; }
+.startup { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 24px; box-sizing: border-box; font: 14px/1.6 'Segoe UI', sans-serif; color: #172f42; }
+.startup-brand { display: flex; align-items: center; gap: 12px; font-size: 30px; letter-spacing: -1px; }
+.startup-brand svg, .startup-brand strong span { color: #078772; }
+.startup .development-badge { border: 1px solid #dec98d; background: #fff7de; color: #796120; border-radius: 6px; font-size: 12px; padding: 4px 10px; }
+.startup .loading-state { display: flex; align-items: center; gap: 12px; color: #697480; }
+.startup .notice { max-width: 550px; display: flex; gap: 14px; border: 1px solid #e9bbb4; background: #fff0ed; padding: 22px; border-radius: 10px; }
+.startup .notice svg { flex-shrink: 0; color: #b64c3a; }
+.startup .notice p { margin: 6px 0; }
+.startup .text-button { background: none; border: 0; padding: 6px 0; cursor: pointer; color: #087c69; text-decoration: underline; }
