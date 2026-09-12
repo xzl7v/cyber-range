@@ -50,8 +50,8 @@ services:
               count: all
               capabilities: [gpu]
     networks:
-      - isolated-range
-
+    - isolated-range
+    - frontend-net
   # عقدة الدكتور / المشرف
   doctor-node:
     image: kasmweb/kali-rolling-desktop:1.16.0
