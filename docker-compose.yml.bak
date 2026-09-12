@@ -19,8 +19,6 @@ services:
   student-node:
     image: kasmweb/kali-rolling-desktop:1.16.0
     container_name: student-node
-    shm_size: '2gb'
-    restart: unless-stopped
     environment:
       - VNC_PW=StudentSecure2026!
       - KASM_SVC_USER_PASSWORD=StudentSecure2026!
@@ -76,9 +74,20 @@ networks:
   isolated-range:
     driver: bridge
     internal: true
-    student-node:
+student-node:
     image: kasmweb/kali-rolling-desktop:1.16.0
     container_name: student-node
     ports:
       - "6901:6901"
-      
+    environment:
+      - VNC_PW=StudentSecure2026!
+      - KASM_SVC_USER_PASSWORD=StudentSecure2026!
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - START_VGL=1
+    networks:
+      - isolated-range
+    profiles:
+      - labs
+    shm_size: '2gb'
+    restart: unless-stopped
