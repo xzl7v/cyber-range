@@ -65,9 +65,9 @@ services:
     networks:
       - isolated-range
   environment:
-    - VNC_PW=StudentSecure2026!
-    - KASM_SVC_USER_PASSWORD=StudentSecure2026!
-    - NO_auth=1
+     VNC_PW=StudentSecure2026!
+     KASM_SVC_USER_PASSWORD=StudentSecure2026!
+     NO_auth=1
   # مثال على هدف تدريبي معزول ينزله الدكتور (DVWA)
   target-dvwa:
     image: vulnerables/web-dvwa:latest
