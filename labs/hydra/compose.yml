@@ -26,3 +26,17 @@ services:
       - isolated-range
     profiles:
       - hydra
+student-node:
+    image: kasmweb/kali-rolling-desktop:1.16.0
+    container_name: student-node
+    ports:
+      - "127.0.0.1:6901:6901"
+    shm_size: '2gb'
+    restart: unless-stopped
+    environment:
+      - VNC_PW=SuperComplexSecurePassword2026!
+      - KASM_SVC_USER_PASSWORD=SuperComplexSecurePassword2026!
+      # تم حذف NO_auth=1 لفرض كلمة المرور الإجبارية
+    networks:
+      - isolated-range
+      - frontend-net
