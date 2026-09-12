@@ -1,0 +1,28 @@
+services:
+  target-hydra-ssh:
+    build:
+      context: ./labs/hydra
+      target: ssh-target
+    networks:
+      - isolated-range
+    profiles:
+      - hydra
+    healthcheck:
+      test: ["CMD-SHELL", "ssh-keyscan -t ed25519 -T 2 127.0.0.1 2>/dev/null | grep -q ssh-ed25519"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+
+  hydra-client:
+    build:
+      context: ./labs/hydra
+      target: hydra-client
+    command: ["-l", "trainee", "-P", "/lab/passwords.txt", "-t", "2", "-f", "-V", "target-hydra-ssh", "ssh"]
+    depends_on:
+      target-hydra-ssh:
+        condition: service_healthy
+    networks:
+      - isolated-range
+    profiles:
+      - hydra
