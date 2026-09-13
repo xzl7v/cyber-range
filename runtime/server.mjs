@@ -170,7 +170,7 @@ async function createSession(input) {
     kaliContainerName: `cybr-kali-${safe}`,
     kaliContainerId: '',
     kaliProxyPort: 0,
-    kaliUrl: `/sessions/${sessionId}/kali/vnc.html?autoconnect=1&resize=scale`,
+    kaliUrl: `/sessions/${sessionId}/kali/vnc.html?autoconnect=1&resize=scale&path=sessions/${sessionId}/kali/websockify`,
     targets: [],
   };
   sessions.set(sessionId, session);
@@ -302,19 +302,32 @@ function proxyErrorHandler(error, request, response) {
   }
   if (!response.headersSent) response.status(502).json({ error: { code: 'PROXY_ERROR', message: 'Unable to reach the practice environment.' } });
 }
-function kaliTarget(session) {
+function kaliTarget(session, port = 6901, upgrade = false) {
+  const origin = `https://127.0.0.1:${port}`;
+  const headers = {
+    Authorization: kasmAuthorization,
+    Origin: origin,
+    Host: `127.0.0.1:${port}`,
+  };
+  if (upgrade) {
+    headers.Connection = 'Upgrade';
+    headers.Upgrade = 'websocket';
+    headers['Sec-WebSocket-Protocol'] = 'binary';
+  }
   return {
-    target: `https://${session.kaliProxyHost}:${session.kaliProxyPort}`,
+    target: `https://${session.kaliProxyHost}:${port}`,
     secure: false,
     changeOrigin: true,
-    headers: { Authorization: kasmAuthorization },
+    headers,
   };
 }
 function proxyKali(request, response, session, stripPrefix = false) {
   if (!session || session.status !== 'RUNNING' || !session.kaliProxyPort) return fail(404, 'NOT_FOUND', 'The Kali desktop is not available for this session.');
   response.setHeader('Set-Cookie', `cyber_range_kali_session=${encodeURIComponent(session.id)}; Path=/; SameSite=Lax`);
-  if (stripPrefix) request.url = request.url.replace(/^\/sessions\/[^/]+\/kali/, '') || '/';
-  proxy.web(request, response, kaliTarget(session), (error) => proxyErrorHandler(error, request, response));
+  const upstreamPath = stripPrefix ? (request.url.replace(/^\/sessions\/[^/]+\/kali/, '') || '/') : request.url;
+  request.url = upstreamPath;
+  const port = 6901;
+  proxy.web(request, response, kaliTarget(session, port), (error) => proxyErrorHandler(error, request, response));
   return null;
 }
 app.use('/sessions/:sessionId/kali', (request, response) => {
@@ -348,20 +361,27 @@ server.on('upgrade', (request, socket, head) => {
   let session = null;
   let stripPrefix = false;
   const pathMatch = String(request.url || '').match(/^\/sessions\/([^/]+)\/kali/);
+  console.log(`Upgrade request: ${request.url}`);
   if (pathMatch) {
     session = sessions.get(decodeURIComponent(pathMatch[1])) || null;
     stripPrefix = true;
   } else {
     session = sessionForRequest(request);
   }
+  console.log(`Upgrade session: ${session?.id || 'none'} status=${session?.status || 'none'} port=${session?.kaliProxyPort || 0}`);
   if (!session || session.status !== 'RUNNING' || !session.kaliProxyPort) {
     socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
     socket.destroy();
     return;
   }
   request.headers.authorization = kasmAuthorization;
+  request.headers.connection = 'Upgrade';
+  request.headers.upgrade = 'websocket';
+  request.headers['sec-websocket-protocol'] = request.headers['sec-websocket-protocol'] || 'binary';
+  request.headers.origin = `https://127.0.0.1:6901`;
+  request.headers.host = `127.0.0.1:6901`;
   if (stripPrefix) request.url = request.url.replace(/^\/sessions\/[^/]+\/kali/, '') || '/';
-  proxy.ws(request, socket, head, kaliTarget(session), (error) => {
+  proxy.ws(request, socket, head, kaliTarget(session, 6901, true), (error) => {
     if (error) socket.destroy();
   });
 });
