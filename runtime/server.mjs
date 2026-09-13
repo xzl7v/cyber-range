@@ -4,16 +4,18 @@ import httpProxy from 'http-proxy';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { createConnection } from 'node:net';
+import { hostname } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const moduleDirectory = resolve(dirname(fileURLToPath(import.meta.url)));
 const port = Number(process.env.PORT || 3001);
 const dockerSocket = process.env.DOCKER_SOCKET || '/var/run/docker.sock';
-const runtimeContainerId = process.env.RUNTIME_CONTAINER_ID || '';
+const runtimeContainerId = process.env.RUNTIME_CONTAINER_ID || hostname();
 const sessionTtlMs = Number(process.env.CYBER_RANGE_SESSION_TTL_MS || 4 * 60 * 60 * 1000);
 const kaliImage = process.env.CYBER_RANGE_KALI_IMAGE || '';
 const vncPassword = process.env.CYBER_RANGE_VNC_PASSWORD || randomUUID();
+const kasmAuthorization = `Basic ${Buffer.from(`kasm_user:${vncPassword}`).toString('base64')}`;
 const definitions = JSON.parse(await readFile(process.env.CYBER_RANGE_LAB_DEFINITIONS || join(moduleDirectory, 'lab-definitions.json'), 'utf8'));
 
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be an integer from 1 to 65535.');
@@ -78,6 +80,7 @@ async function imageExists(name) {
 }
 async function ensureImage(name, build) {
   if (await imageExists(name)) return;
+  console.log(`Preparing image ${name}${build ? ' from local build context' : ' from registry'}...`);
   if (build) {
     const stream = await docker.buildImage({ context: build.context, src: build.src }, {
       t: name,
@@ -88,6 +91,7 @@ async function ensureImage(name, build) {
   } else {
     await followProgress(await docker.pull(name));
   }
+  console.log(`Image ${name} is ready.`);
 }
 async function containerById(id) {
   if (!id) return null;
@@ -127,6 +131,7 @@ async function cleanupContainers(session) {
   for (const target of session.targets || []) await removeContainer(target.containerId || target.name);
   await removeContainer(session.kaliContainerId || session.kaliContainerName);
   if (session.networkName) {
+    try { await docker.getNetwork(session.networkName).disconnect({ Container: runtimeContainerId }); } catch { /* The runtime container may not be attached. */ }
     try { await docker.getNetwork(session.networkName).remove(); } catch { /* Network removal is best effort. */ }
   }
 }
@@ -170,6 +175,7 @@ async function createSession(input) {
   };
   sessions.set(sessionId, session);
   sessionsByAttempt.set(attemptId, session);
+  console.log(`Creating session ${sessionId} for attempt ${attemptId}.`);
   try {
     await docker.createNetwork({
       Name: session.networkName,
@@ -177,6 +183,7 @@ async function createSession(input) {
       Internal: true,
       Labels: { 'cyber-range.session': sessionId, 'cyber-range.attempt': attemptId },
     });
+    await docker.getNetwork(session.networkName).connect({ Container: runtimeContainerId });
     const kaliImageName = kaliImage || definition.kaliImage;
     await ensureImage(kaliImageName);
     session.targets = await Promise.all((definition.targets || []).map(async (targetDefinition, index) => {
@@ -214,25 +221,25 @@ async function createSession(input) {
         NetworkMode: session.networkName,
         Memory: definition.resourceLimits?.kali?.memory || 2147483648,
         NanoCpus: definition.resourceLimits?.kali?.nanoCpus || 2000000000,
-        PortBindings: { '6901/tcp': [{ HostIp: '127.0.0.1', HostPort: '' }] },
         RestartPolicy: { Name: 'no' },
         SecurityOpt: ['no-new-privileges'],
       },
       Labels: { 'cyber-range.session': sessionId, 'cyber-range.attempt': attemptId, 'cyber-range.role': 'kali' },
     });
     session.kaliContainerId = kaliContainer.id;
+    session.kaliProxyHost = session.kaliContainerName;
+    session.kaliProxyPort = 6901;
     session.status = 'STARTING';
+    console.log(`Starting containers for session ${sessionId}.`);
     await startContainers(session);
-    const inspected = await containerById(session.kaliContainerId);
-    const published = inspected?.NetworkSettings?.Ports?.['6901/tcp']?.[0];
-    if (!published?.HostPort) throw new Error('Docker did not publish a loopback port for the Kali desktop.');
-    session.kaliProxyPort = Number(published.HostPort);
-    await waitForPort('host.docker.internal', session.kaliProxyPort);
+    await waitForPort(session.kaliProxyHost, session.kaliProxyPort);
     session.status = 'RUNNING';
+    console.log(`Session ${sessionId} is running.`);
     return session;
   } catch (error) {
     session.status = 'FAILED';
     session.lastError = error.message;
+    console.error(`Session ${sessionId} failed: ${error.message}`);
     await cleanupContainers(session);
     throw error;
   }
@@ -297,13 +304,15 @@ function proxyErrorHandler(error, request, response) {
 }
 function kaliTarget(session) {
   return {
-    target: `https://host.docker.internal:${session.kaliProxyPort}`,
+    target: `https://${session.kaliProxyHost}:${session.kaliProxyPort}`,
     secure: false,
     changeOrigin: true,
+    headers: { Authorization: kasmAuthorization },
   };
 }
 function proxyKali(request, response, session, stripPrefix = false) {
   if (!session || session.status !== 'RUNNING' || !session.kaliProxyPort) return fail(404, 'NOT_FOUND', 'The Kali desktop is not available for this session.');
+  response.setHeader('Set-Cookie', `cyber_range_kali_session=${encodeURIComponent(session.id)}; Path=/; SameSite=Lax`);
   if (stripPrefix) request.url = request.url.replace(/^\/sessions\/[^/]+\/kali/, '') || '/';
   proxy.web(request, response, kaliTarget(session), (error) => proxyErrorHandler(error, request, response));
   return null;
@@ -350,6 +359,7 @@ server.on('upgrade', (request, socket, head) => {
     socket.destroy();
     return;
   }
+  request.headers.authorization = kasmAuthorization;
   if (stripPrefix) request.url = request.url.replace(/^\/sessions\/[^/]+\/kali/, '') || '/';
   proxy.ws(request, socket, head, kaliTarget(session), (error) => {
     if (error) socket.destroy();

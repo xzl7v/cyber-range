@@ -13,10 +13,13 @@ WORKDIR /app
 COPY gateway/package.json gateway/package-lock.json ./
 RUN npm ci --omit=dev
 
+RUN mkdir -p /app/gateway
+WORKDIR /app/gateway
+
 COPY gateway/server.mjs ./
 COPY gateway/public ./public
-COPY labs-module/server/labs.js ./labs-module/server/labs.js
-COPY --from=frontend /labs/dist ./labs-module/dist
+COPY labs-module/server/labs.js /app/labs-module/server/labs.js
+COPY --from=frontend /labs/dist /app/labs-module/dist
 
 ENV NODE_ENV=production
 EXPOSE 3000
