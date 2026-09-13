@@ -98,7 +98,7 @@ function EmptyState({ icon = 'labs', title, children, action }) {
   return <div className="empty-state"><div className="empty-icon"><Icon name={icon} size={30}/></div><h2>{title}</h2><p>{children}</p>{action}</div>
 }
 
-export function LabsModule({ user, apiBase = '/api', getRequestHeaders, devUserId, developmentUsers, onIdentityChange }) {
+export function LabsModule({ user, apiBase = '/api', runtimeApi, getRequestHeaders, devUserId, developmentUsers, onIdentityChange }) {
   const headersRef = useRef(getRequestHeaders)
   headersRef.current = getRequestHeaders
   const api = useMemo(() => createLabsApi({ baseUrl: apiBase, devUserId, getRequestHeaders: () => headersRef.current?.() || {} }), [apiBase, devUserId])
@@ -158,7 +158,7 @@ export function LabsModule({ user, apiBase = '/api', getRequestHeaders, devUserI
     } catch (error) { setNotice({ error }) }
   }
   if (!user || !['student', 'instructor'].includes(user.role)) return <div className="module-unavailable"><Alert error={new Error('The host application must provide a student or instructor identity.')}/></div>
-  const viewProps = { api, instructor, busy, run, navigate, labAction, setNotice }
+  const viewProps = { api, runtimeApi, instructor, busy, run, navigate, labAction, setNotice }
   const routeKey = `${user.id}:${route.type}:${route.id || ''}`
   return <div className="labs-app">
     <aside className="side-rail">
@@ -304,13 +304,20 @@ function LabEditor({ id, api, busy, run, navigate, markDirty, setNotice }) {
     </form>}</>
 }
 
-function AttemptWorkspace({ id, api, busy, run, navigate }) {
+function AttemptWorkspace({ id, api, runtimeApi, busy, run, navigate }) {
   const resource = useResource(() => api.getAttempt(id), id, true)
+  const sessionResource = useResource(() => runtimeApi ? runtimeApi.getSessionByAttempt(id) : Promise.resolve({ session: null }), `runtime:${id}:${Boolean(runtimeApi)}`, Boolean(runtimeApi))
   const [answers, setAnswers] = useState({})
   const [hints, setHints] = useState({})
   const [feedback, setFeedback] = useState({})
   const attempt = resource.data?.attempt
+  const session = sessionResource.data?.session || null
   const progress = attempt?.progress
+  useEffect(() => {
+    if (session?.id) {
+      document.cookie = `cyber_range_kali_session=${encodeURIComponent(session.id)}; Path=/; SameSite=Lax`
+    }
+  }, [session?.id])
   async function submit(task) {
     try {
       await run(async () => {
@@ -320,10 +327,29 @@ function AttemptWorkspace({ id, api, busy, run, navigate }) {
       })
     } catch (error) { setFeedback((current) => ({ ...current, [task.id]: { correct: false, message: error.message } })) }
   }
-  return <><BackButton navigate={navigate}/><Alert error={resource.error} onRetry={resource.refresh}/>{resource.loading ? <Loading label="Opening your workspace…"/> : attempt && <>
+  async function stopEnvironment() {
+    if (!session) return
+    try { await run(async () => { await runtimeApi.stopSession(session.id); sessionResource.refresh() }) }
+    catch (error) { sessionResource.update({ session: { ...session, runtimeError: error.message } }) }
+  }
+  async function endLab() {
+    if (!session) { navigate('#labs'); return }
+    try { await run(async () => { await runtimeApi.deleteSession(session.id); navigate('#labs') }) }
+    catch (error) { sessionResource.update({ session: { ...session, runtimeError: error.message } }) }
+  }
+  const runtimeLoading = sessionResource.loading && Boolean(runtimeApi)
+  return <><BackButton navigate={navigate}/><Alert error={resource.error} onRetry={resource.refresh}/><Alert error={sessionResource.error} onRetry={sessionResource.refresh}/>{resource.loading ? <Loading label="Opening your workspace…"/> : attempt && <>
     <div className="page-heading workspace-heading"><div><div className="eyebrow">YOUR LAB WORKSPACE</div><h1>{attempt.lab.name}</h1><p>{attempt.lab.description}</p></div><span className={`chip ${progress.completed ? 'chip-green' : 'chip-teal'}`}><i/>{progress.completed ? 'Completed' : 'In progress'}</span></div>
     <div className="attempt-progress" data-testid="attempt-progress"><div className="progress-stat"><span>Points earned</span><strong>{progress.earnedScore} <small>/ {progress.totalScore}</small></strong></div><div className="progress-stat"><span>Tasks completed</span><strong>{progress.completedTasks} <small>/ {progress.totalTasks}</small></strong></div><div className="progress-meter"><div><span>Progress</span><strong>{progress.percent}%</strong></div><div className="progress-track" role="progressbar" aria-label="Lab progress" aria-valuenow={progress.percent} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${progress.percent}%` }}/></div><small>Saved automatically as you complete tasks</small></div></div>
     {progress.completed && <div className="completion-banner" role="status"><span><Icon name="check" size={24}/></span><div><h2>Lab completed</h2><p>You have completed every task and earned {progress.earnedScore} points.</p></div><button className="button secondary" onClick={() => navigate('#labs')}>Explore more labs<Icon name="arrow" size={17}/></button></div>}
+    {runtimeApi && <section className="content-panel runtime-panel">
+      <div className="panel-heading"><Icon name="target"/><h2>Practice environment</h2>{session && <span className={`chip ${session.status === 'RUNNING' ? 'chip-green' : session.status === 'FAILED' ? 'chip-red' : 'chip-amber'}`}><i/>{session.status || 'Unknown'}</span>}</div>
+      {runtimeLoading ? <Loading label="Preparing your isolated environment…"/> : session?.runtimeError ? <div className="notice notice-error" role="alert"><Icon name="alert"/><span>{session.runtimeError}</span><button className="button secondary small" onClick={sessionResource.refresh}>Retry</button></div> : session ? <div className="runtime-body">
+        <div className="runtime-actions"><span className="muted">{session.targetName ? `Target: ${session.targetName}` : 'Kali workspace'}</span><div><button className="button secondary small" disabled={busy || session.status === 'STOPPED'} onClick={stopEnvironment}>{session.status === 'STOPPED' ? 'Stopped' : 'Stop environment'}</button><button className="button danger small" disabled={busy} onClick={endLab}>End lab & clean up</button></div></div>
+        {session.status === 'RUNNING' && session.kaliUrl && <iframe className="kali-frame" src={session.kaliUrl} title="Kali Linux desktop" allow="clipboard-read; clipboard-write" />}
+        {session.status !== 'RUNNING' && <div className="runtime-placeholder"><Icon name="target" size={34}/><p>Your environment is {String(session.status).toLowerCase()}. {session.status === 'STOPPED' ? 'Start the lab again to resume, or end it to remove its containers.' : 'It should become ready shortly.'}</p></div>}
+      </div> : <p className="muted">No practice environment has been started yet.</p>}
+    </section>}
     <div className="workspace-layout"><div className="workspace-tasks"><div className="section-title"><h2>Work through the tasks</h2><span>{attempt.lab.tasks.length}</span></div>{attempt.lab.tasks.map((task, index) => {
       const completed = progress.completedTaskIds.includes(task.id)
       const locked = task.requiresPrevious && attempt.lab.tasks.slice(0, index).some((previous) => !progress.completedTaskIds.includes(previous.id))

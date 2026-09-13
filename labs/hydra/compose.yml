@@ -1,7 +1,7 @@
 services:
   target-hydra-ssh:
     build:
-      context: ./labs/hydra
+      context: .
       target: ssh-target
     networks:
       - isolated-range
@@ -16,7 +16,7 @@ services:
 
   hydra-client:
     build:
-      context: ./labs/hydra
+      context: .
       target: hydra-client
     command: ["-l", "trainee", "-P", "/lab/passwords.txt", "-t", "2", "-f", "-V", "target-hydra-ssh", "ssh"]
     depends_on:
@@ -26,3 +26,8 @@ services:
       - isolated-range
     profiles:
       - hydra
+
+networks:
+  isolated-range:
+    driver: bridge
+    internal: true

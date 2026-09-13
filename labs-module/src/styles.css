@@ -416,3 +416,19 @@
   .labs-app .page-footer { margin-inline: 18px; }
 }
 @media (prefers-reduced-motion: reduce) { .labs-app *, .labs-app *::before, .labs-app *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+.labs-app .chip-red { background: #fbe9e7; color: #b3594f; }
+.labs-app .button.danger { background: #a83c34; color: #fff; border-color: #a83c34; }
+.labs-app .button.danger:hover:not(:disabled) { background: #8f2f28; border-color: #8f2f28; }
+.labs-app .runtime-panel { margin-bottom: 28px; }
+.labs-app .runtime-body { display: grid; gap: 14px; }
+.labs-app .runtime-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.labs-app .runtime-actions > div { display: flex; align-items: center; gap: 9px; }
+.labs-app .kali-frame { width: 100%; aspect-ratio: 16 / 9; min-height: 480px; border: 1px solid var(--line); border-radius: 8px; background: #0b1117; }
+.labs-app .runtime-placeholder { min-height: 210px; display: grid; place-items: center; align-content: center; gap: 12px; color: #7c8c96; border: 1px dashed #d5e0e5; border-radius: 8px; padding: 25px; text-align: center; }
+.labs-app .runtime-placeholder p { max-width: 480px; font-size: 12px; color: #83919b; }
+
+@media (max-width: 760px) {
+  .labs-app .runtime-actions { align-items: flex-start; flex-direction: column; }
+  .labs-app .kali-frame { min-height: 300px; }
+}

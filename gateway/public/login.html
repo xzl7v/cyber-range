@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cyber Range Sign in</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0d1117; --panel:#161b22; --line:#30363d; --text:#c9d1d9; --muted:#8b949e; --accent:#238636; --accent-hover:#2ea043; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--text); font-family:'Segoe UI', system-ui, sans-serif; }
+    .card { width:min(92vw, 390px); background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:34px; box-shadow:0 18px 50px #0009; }
+    .mark { width:46px; height:46px; display:grid; place-items:center; border-radius:12px; background:#1f6feb1f; color:#58a6ff; font-size:25px; font-weight:700; margin-bottom:22px; }
+    h1 { margin:0 0 8px; font-size:26px; letter-spacing:-.4px; }
+    p { color:var(--muted); font-size:13px; line-height:1.6; margin:0 0 24px; }
+    label { display:block; margin:14px 0 7px; color:#b7c3cc; font-size:12px; }
+    input { width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:7px; background:#0d1117; color:#fff; font:inherit; }
+    input:focus { outline:2px solid #1f6feb; border-color:transparent; }
+    button { width:100%; margin-top:22px; padding:11px; border:0; border-radius:7px; background:var(--accent); color:#fff; font-weight:700; cursor:pointer; }
+    button:hover { background:var(--accent-hover); }
+    button:disabled { opacity:.55; cursor:not-allowed; }
+    .error { color:#f85149; font-size:12px; min-height:18px; margin-top:14px; }
+  </style>
+</head>
+<body>
+  <form class="card" id="login-form">
+    <div class="mark">CR</div>
+    <h1>Cyber Range</h1>
+    <p>Sign in to open the student or instructor workspace.</p>
+    <label for="username">Username</label>
+    <input id="username" name="username" autocomplete="username" required />
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required />
+    <button id="submit" type="submit">Sign in</button>
+    <div class="error" id="error" role="alert"></div>
+  </form>
+  <script>
+    const form = document.getElementById('login-form');
+    const errorBox = document.getElementById('error');
+    const submitButton = document.getElementById('submit');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      errorBox.textContent = '';
+      submitButton.disabled = true;
+      try {
+        const response = await fetch('/login', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: document.getElementById('username').value.trim(),
+            password: document.getElementById('password').value,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error?.message || 'Sign in failed.');
+        window.location.assign('/app');
+      } catch (error) {
+        errorBox.textContent = error.message;
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

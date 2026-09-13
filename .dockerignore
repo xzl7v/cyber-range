@@ -1,0 +1,11 @@
+.git
+**/node_modules
+**/.data
+**/dist
+**/test-results
+**/playwright-report
+.env
+**/.env
+gateway/.env
+tunnel.log
+hashes.txt

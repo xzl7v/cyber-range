@@ -1,0 +1,49 @@
+{
+  "hydra": {
+    "id": "hydra",
+    "name": "Hydra SSH Training Lab",
+    "kaliImage": "kasmweb/kali-rolling-desktop:1.16.0",
+    "targets": [
+      {
+        "name": "target",
+        "image": "cyber-range/hydra-target:local",
+        "build": {
+          "context": "/app/labs/hydra",
+          "dockerfile": "Dockerfile",
+          "target": "ssh-target",
+          "src": ["Dockerfile", "sshd_config", "passwords.txt"]
+        },
+        "healthcheck": ["CMD-SHELL", "ssh-keyscan -t ed25519 -T 2 127.0.0.1 2>/dev/null | grep -q ssh-ed25519"]
+      }
+    ],
+    "resourceLimits": {
+      "kali": { "memory": 2147483648, "nanoCpus": 2000000000 },
+      "target": { "memory": 268435456, "nanoCpus": 500000000 }
+    }
+  },
+  "dvwa": {
+    "id": "dvwa",
+    "name": "DVWA Web Security Lab",
+    "kaliImage": "kasmweb/kali-rolling-desktop:1.16.0",
+    "targets": [
+      {
+        "name": "dvwa",
+        "image": "vulnerables/web-dvwa:latest",
+        "healthcheck": ["CMD-SHELL", "curl -fsS http://127.0.0.1/ >/dev/null 2>&1 || wget -qO- http://127.0.0.1/ >/dev/null 2>&1"]
+      }
+    ],
+    "resourceLimits": {
+      "kali": { "memory": 2147483648, "nanoCpus": 2000000000 },
+      "target": { "memory": 536870912, "nanoCpus": 1000000000 }
+    }
+  },
+  "default": {
+    "id": "default",
+    "name": "Isolated Kali Practice Lab",
+    "kaliImage": "kasmweb/kali-rolling-desktop:1.16.0",
+    "targets": [],
+    "resourceLimits": {
+      "kali": { "memory": 2147483648, "nanoCpus": 2000000000 }
+    }
+  }
+}

@@ -52,9 +52,12 @@ function secretFor(answer) {
 const labFields = ['name', 'slug', 'description', 'difficulty', 'estimatedDuration', 'category', 'requiredTools', 'learningObjectives', 'instructions', 'enabled', 'published'];
 const taskFields = ['title', 'description', 'score', 'hints', 'validationType', 'completionRequirements', 'requiresPrevious', 'caseSensitive'];
 
-export function createLabsModule({ databasePath, resolveUser }) {
+export function createLabsModule({ databasePath, resolveUser, runtime, seedLabs = [] }) {
   if (typeof resolveUser !== 'function') throw new TypeError('resolveUser must be a function.');
   if (typeof databasePath !== 'string' || !databasePath) throw new TypeError('databasePath is required.');
+  if (runtime !== undefined && (typeof runtime !== 'object' || runtime === null)) throw new TypeError('runtime must be an object when provided.');
+  if (runtime?.startSession !== undefined && typeof runtime.startSession !== 'function') throw new TypeError('runtime.startSession must be a function when provided.');
+  if (!Array.isArray(seedLabs)) throw new TypeError('seedLabs must be an array when provided.');
   if (databasePath !== ':memory:') mkdirSync(dirname(resolve(databasePath)), { recursive: true });
   const db = new DatabaseSync(databasePath);
   db.exec(`
@@ -332,7 +335,7 @@ export function createLabsModule({ databasePath, resolveUser }) {
     });
     labResponse(response, lab);
   });
-  router.post('/labs/:labId/start', student, (request, response) => {
+  router.post('/labs/:labId/start', student, async (request, response) => {
     const attempt = transaction(() => {
       const lab = visibleLab(request.params.labId);
       const timestamp = now();
@@ -340,6 +343,16 @@ export function createLabsModule({ databasePath, resolveUser }) {
         .run(randomUUID(), lab.id, request.labsUser.id, timestamp, timestamp);
       return attemptView(db.prepare('SELECT * FROM attempts WHERE lab_id = ? AND user_id = ?').get(lab.id, request.labsUser.id), lab);
     });
+    if (runtime?.startSession) {
+      try {
+        const session = await runtime.startSession({ attemptId: attempt.id, labId: attempt.labId, studentId: attempt.userId, request, lab: attempt.lab });
+        response.json({ attempt, session });
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        fail(502, 'SESSION_START_FAILED', error.message || 'Unable to start the lab environment.');
+      }
+      return;
+    }
     response.json({ attempt });
   });
   router.get('/attempts/:attemptId', student, (request, response) => {
@@ -382,5 +395,8 @@ export function createLabsModule({ databasePath, resolveUser }) {
     if (error.type === 'entity.parse.failed' || error.type === 'entity.too.large') return response.status(400).json({ error: { code: 'INVALID_JSON', message: 'Send valid JSON smaller than 1 MB.' } });
     response.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'The request could not be completed.' } });
   });
+  if (seedLabs.length && db.prepare('SELECT COUNT(*) AS count FROM labs').get().count === 0) {
+    for (const seed of seedLabs) transaction(() => saveLab(parseLab(seed)));
+  }
   return { router, close: () => db.close() };
 }

@@ -1,0 +1,9 @@
+.env
+**/.env
+node_modules/
+dist/
+.data/
+test-results/
+playwright-report/
+tunnel.log
+hashes.txt

@@ -4,8 +4,8 @@ echo "=================================================="
 echo "         CYBER-RANGE: OWNER DASHBOARD             "
 echo "=================================================="
 echo ""
-echo "[+] Student Container Shell Activity:"
-docker logs --tail 10 -f range-student 2>&1 &
+echo "[+] Runtime manager activity:"
+docker logs --tail 10 -f cyber-range-runtime-manager 2>&1 &
 PID_STUDENT=$!
 
 echo ""

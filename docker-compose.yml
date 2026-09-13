@@ -1,5 +1,4 @@
 services:
-  # بوابة الوصول الخارجية
   range-gateway:
     image: nginx:alpine
     container_name: range-gateway
@@ -7,77 +6,66 @@ services:
       - "80:80"
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./gateway/index.html:/usr/share/nginx/html/index.html:ro
-    networks:
-      - frontend-net
-      - isolated-range
     depends_on:
-      - student-node
-      - doctor-node
-
-  # عقدة الطالب - كالي لينكس (معزولة عن الإنترنت)
-  student-node:
-    image: kasmweb/kali-rolling-desktop:1.16.0
-    container_name: student-node
-    ports:
-    - "127.0.0.1:6901:6901"
-    - "127.0.0.1:4901:4901"
-    shm_size: '2gb'
-    restart: unless-stopped
-    environment:
-      - VNC_PW=StudentSecure2026!
-      - KASM_SVC_USER_PASSWORD=StudentSecure2026!
-      - NO_auth=1
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
-      - START_VGL=1
-    devices:
-      - /dev/dri/card1:/dev/dri/card1
-      - /dev/dri/renderD128:/dev/dri/renderD128
-      - /dev/nvidia0:/dev/nvidia0
-      - /dev/nvidiactl:/dev/nvidiactl
-      - /dev/nvidia-modeset:/dev/nvidia-modeset
-      - /dev/nvidia-uvm:/dev/nvidia-uvm
-      - /dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools
-    group_add:
-      - "987"
-      - "video"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+      - web-app
+      - runtime-manager
     networks:
-      - isolated-range
       - frontend-net
+    restart: unless-stopped
 
-  # عقدة الدكتور / المشرف
-  doctor-node:
-    image: kasmweb/kali-rolling-desktop:1.16.0
-    container_name: doctor-node
+  web-app:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: cyber-range-web-app
+    env_file:
+      - .env
     environment:
-      - VNC_PW=DoctorSecure2026!
-      - KASM_SVC_USER_PASSWORD=DoctorSecure2026!
+      PORT: "3000"
+      CYBER_RANGE_RUNTIME_URL: "http://runtime-manager:3001"
+      LABS_DATABASE: "/data/labs.sqlite"
     volumes:
-      - ./labs:/opt/range-labs
-      - /var/run/docker.sock:/var/run/docker.sock
+      - labs-data:/data
+    depends_on:
+      - runtime-manager
     networks:
-      - isolated-range
+      - frontend-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/me').then(r=>process.exit(r.status===401?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
-  # مثال على هدف تدريبي معزول ينزله الدكتور (DVWA)
-  target-dvwa:
-    image: vulnerables/web-dvwa:latest
-    container_name: target-dvwa
+  runtime-manager:
+    build:
+      context: .
+      dockerfile: runtime/Dockerfile
+    container_name: cyber-range-runtime-manager
+    env_file:
+      - .env
+    environment:
+      PORT: "3001"
+      DOCKER_SOCKET: "/var/run/docker.sock"
+      CYBER_RANGE_LAB_DEFINITIONS: "/app/lab-definitions.json"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
-      - isolated-range
-    profiles:
-      - labs
+      - frontend-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 networks:
   frontend-net:
     driver: bridge
-  isolated-range:
-    driver: bridge
-    internal: true
+
+volumes:
+  labs-data:

@@ -1,19 +1,14 @@
 #!/bin/bash
-COMPOSE_FILE="$HOME/cyber-range/docker-compose.yml"
+set -euo pipefail
+
 case "$1" in
-  deploy)
-    docker compose -f "$COMPOSE_FILE" --profile labs up -d target-dvwa
-    echo "[+] Lab DVWA Deployed successfully at: target-dvwa"
-    ;;
-  destroy)
-    docker compose -f "$COMPOSE_FILE" --profile labs stop target-dvwa
-    docker compose -f "$COMPOSE_FILE" --profile labs rm -f target-dvwa
-    echo "[-] Lab Destroyed."
-    ;;
   status)
-    docker ps --filter "network=cyber-range_isolated-range"
+    docker ps --filter "label=cyber-range.session"
+    ;;
+  cleanup)
+    docker ps -aq --filter "label=cyber-range.session" | xargs -r docker rm -f
     ;;
   *)
-    echo "Usage: $0 {deploy|destroy|status}"
+    echo "Usage: $0 {status|cleanup}"
     ;;
 esac
