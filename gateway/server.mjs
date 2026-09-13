@@ -180,6 +180,7 @@ app.use('/api/labs-module', labs.router);
 app.use('/api/runtime', async (request, response) => {
   if (!request.user) return response.status(401).json({ error: { code: 'AUTH_REQUIRED', message: 'Sign in to continue.' } });
   if (request.user.role !== 'student') return response.status(403).json({ error: { code: 'FORBIDDEN', message: 'Select the student workspace before using the runtime.' } });
+  response.set('Cache-Control', 'no-store');
   const targetPath = request.originalUrl.replace(/^\/api\/runtime/, '/api');
   const target = new URL(targetPath, `${runtimeUrl.replace(/\/$/, '')}/`);
   const headers = {
@@ -188,12 +189,17 @@ app.use('/api/runtime', async (request, response) => {
     'X-Runtime-User-Role': request.user.role,
   };
   const body = ['GET', 'HEAD'].includes(request.method) ? undefined : JSON.stringify(request.body || {});
-  const upstream = await fetch(target, {
-    method: request.method,
-    headers,
-    body,
-    signal: AbortSignal.timeout(600000),
-  });
+  let upstream;
+  try {
+    upstream = await fetch(target, {
+      method: request.method,
+      headers,
+      body,
+      signal: AbortSignal.timeout(600000),
+    });
+  } catch {
+    return response.status(502).json({ error: { code: 'RUNTIME_UNAVAILABLE', message: 'The runtime service is not available.' } });
+  }
   const data = await upstream.json().catch(() => ({}));
   response.status(upstream.status).json(data);
 });

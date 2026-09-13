@@ -172,7 +172,8 @@ test.describe('Standalone Labs module', () => {
     expect(copied.tasks.map((task) => task.title)).toEqual(updated.tasks.map((task) => task.title));
     expect(copied.tasks[1].hasAnswer).toBe(true);
 
-    await page.goto(`/#labs/${saved.id}`);
+    await page.evaluate((id) => { window.location.hash = `labs/${id}` }, saved.id);
+    await page.waitForTimeout(100);
     await page.getByRole('button', { name: 'Unpublish lab', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Publish lab', exact: true })).toBeVisible();
     expect((await api(request, 'GET', '/labs', undefined, 'student-a')).labs.map((lab) => lab.id)).not.toContain(saved.id);
