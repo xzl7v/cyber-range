@@ -320,6 +320,10 @@ app.use('/dist', (request, response) => {
   const error = proxyKali(request, response, sessionForRequest(request), false);
   if (error) throw error;
 });
+app.use('/vnc.html', (request, response) => {
+  const error = proxyKali(request, response, sessionForRequest(request), false);
+  if (error) throw error;
+});
 app.use('/api', (request, response) => response.status(404).json({ error: { code: 'NOT_FOUND', message: 'Runtime endpoint not found.' } }));
 app.use((error, request, response, next) => {
   if (response.headersSent) return next(error);
