@@ -209,7 +209,7 @@ async function createSession(input) {
       Image: kaliImageName,
       Hostname: `kali-${safe}`,
       ExposedPorts: { '6901/tcp': {} },
-      Env: [`VNC_PW=${vncPassword}`, `KASM_SVC_USER_PASSWORD=${vncPassword}`],
+      Env: [`VNC_PW=${vncPassword}`, `KASM_SVC_USER_PASSWORD=${vncPassword}`, 'NO_auth=1'],
       HostConfig: {
         NetworkMode: session.networkName,
         Memory: definition.resourceLimits?.kali?.memory || 2147483648,

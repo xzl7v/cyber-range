@@ -37,7 +37,14 @@ docker compose up -d
 docker compose ps
 ```
 
-Open `http://localhost`. The local development credentials in `.env` are examples and must be changed before any non-local use.
+Open `http://localhost` and sign in with the centralized demo credentials:
+
+```text
+Username: bisha
+Password: bisha
+```
+
+After login, choose the Student or Instructor workspace inside the application. These credentials are configured only in `.env` and must be changed before any non-local use.
 
 The first Hydra session may take time while Docker pulls the Kali image and builds the isolated SSH target. Sessions are removed automatically by the runtime manager after the configured TTL or when the student ends the lab.
 

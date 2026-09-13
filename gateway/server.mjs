@@ -9,32 +9,20 @@ const moduleDirectory = resolve(dirname(fileURLToPath(import.meta.url)));
 const projectRoot = resolve(moduleDirectory, '..');
 const port = Number(process.env.PORT || 3000);
 const sessionSecret = process.env.CYBER_RANGE_SESSION_SECRET;
-const usersJson = process.env.CYBER_RANGE_USERS_JSON;
+const demoUsername = process.env.DEMO_USERNAME;
+const demoPassword = process.env.DEMO_PASSWORD;
+const demoDisplayName = process.env.DEMO_DISPLAY_NAME || 'Demo User';
 const runtimeUrl = process.env.CYBER_RANGE_RUNTIME_URL || 'http://runtime-manager:3001';
 const labsDatabase = process.env.LABS_DATABASE || join(projectRoot, 'labs-module', '.data', 'labs.sqlite');
 const dist = join(projectRoot, 'labs-module', 'dist');
 
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be an integer from 1 to 65535.');
 if (!sessionSecret || sessionSecret.length < 24) throw new Error('CYBER_RANGE_SESSION_SECRET is required and must contain at least 24 characters.');
-if (!usersJson) throw new Error('CYBER_RANGE_USERS_JSON is required. See .env.example.');
+if (!demoUsername || !demoPassword) throw new Error('DEMO_USERNAME and DEMO_PASSWORD are required. See .env.example.');
 if (!existsSync(join(dist, 'index.html'))) throw new Error('Build the Labs module frontend before starting the gateway.');
 
-let users;
-try {
-  users = JSON.parse(usersJson);
-} catch {
-  throw new Error('CYBER_RANGE_USERS_JSON must be valid JSON.');
-}
-if (!Array.isArray(users) || users.length < 2) throw new Error('CYBER_RANGE_USERS_JSON must contain at least one instructor and one student.');
-const validRoles = new Set(['instructor', 'student']);
-for (const user of users) {
-  if (!user?.id || !user?.username || !user?.password || !validRoles.has(user.role)) {
-    throw new Error('Each user must define id, username, password, and role instructor or student.');
-  }
-  user.displayName ||= user.username;
-}
-const roles = new Set(users.map((user) => user.role));
-if (!roles.has('instructor') || !roles.has('student')) throw new Error('CYBER_RANGE_USERS_JSON must include at least one instructor and one student.');
+const demoUserId = 'demo-user';
+const availableRoles = ['student', 'instructor'];
 
 const seedLabs = [
   {
@@ -76,12 +64,13 @@ function safeEqual(left, right) {
   const rightBuffer = Buffer.from(right);
   return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }
-function encodeToken(user) {
+function encodeToken(role) {
   const payload = {
     v: tokenVersion,
-    userId: user.id,
-    role: user.role,
-    displayName: user.displayName,
+    userId: demoUserId,
+    username: demoUsername,
+    role,
+    displayName: demoDisplayName,
     exp: Math.floor(Date.now() / 1000) + maxAgeSeconds,
   };
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -93,7 +82,7 @@ function decodeToken(token) {
   if (!body || !signature || !safeEqual(sign(body), signature)) return null;
   try {
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
-    if (payload.v !== tokenVersion || !payload.userId || payload.exp < Math.floor(Date.now() / 1000)) return null;
+    if (payload.v !== tokenVersion || payload.userId !== demoUserId || payload.username !== demoUsername || payload.exp < Math.floor(Date.now() / 1000)) return null;
     return payload;
   } catch {
     return null;
@@ -110,8 +99,13 @@ function cookieValue(request) {
 function userFromRequest(request) {
   const payload = decodeToken(cookieValue(request));
   if (!payload) return null;
-  const user = users.find((candidate) => candidate.id === payload.userId && candidate.role === payload.role);
-  return user ? { id: user.id, role: user.role, displayName: user.displayName } : null;
+  return {
+    id: demoUserId,
+    username: demoUsername,
+    role: payload.role || null,
+    displayName: demoDisplayName,
+    availableRoles,
+  };
 }
 
 const app = express();
@@ -125,7 +119,7 @@ app.use((request, response, next) => {
 
 const labs = createLabsModule({
   databasePath: labsDatabase,
-  resolveUser: (request) => request.user,
+  resolveUser: (request) => request.user?.role ? request.user : null,
   seedLabs,
   runtime: {
     startSession: async ({ attemptId, labId, studentId, lab }) => {
@@ -157,17 +151,24 @@ app.get('/login', (request, response) => {
 app.post('/login', (request, response) => {
   const username = String(request.body?.username || '').trim();
   const password = String(request.body?.password || '');
-  const user = users.find((candidate) => candidate.username === username);
-  if (!user || password !== user.password) {
+  if (username !== demoUsername || password !== demoPassword) {
     return response.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'The username or password is incorrect.' } });
   }
-  const token = encodeToken(user);
+  const token = encodeToken(null);
   response.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}`);
-  response.json({ user: { id: user.id, role: user.role, displayName: user.displayName } });
+  response.json({ user: { id: demoUserId, username: demoUsername, role: null, displayName: demoDisplayName, availableRoles } });
 });
 app.post('/logout', (request, response) => {
   response.setHeader('Set-Cookie', `${cookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
   response.json({ loggedOut: true });
+});
+app.post('/api/session/role', (request, response) => {
+  if (!request.user) return response.status(401).json({ error: { code: 'AUTH_REQUIRED', message: 'Sign in to continue.' } });
+  const role = String(request.body?.role || '');
+  if (!availableRoles.includes(role)) return response.status(400).json({ error: { code: 'INVALID_ROLE', message: 'Choose student or instructor.' } });
+  const token = encodeToken(role);
+  response.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}`);
+  response.set('Cache-Control', 'no-store').json({ user: { id: demoUserId, username: demoUsername, role, displayName: demoDisplayName, availableRoles } });
 });
 app.get('/api/me', (request, response) => {
   if (!request.user) return response.status(401).json({ error: { code: 'AUTH_REQUIRED', message: 'Sign in to continue.' } });
@@ -178,6 +179,7 @@ app.use('/api/labs-module', labs.router);
 
 app.use('/api/runtime', async (request, response) => {
   if (!request.user) return response.status(401).json({ error: { code: 'AUTH_REQUIRED', message: 'Sign in to continue.' } });
+  if (request.user.role !== 'student') return response.status(403).json({ error: { code: 'FORBIDDEN', message: 'Select the student workspace before using the runtime.' } });
   const targetPath = request.originalUrl.replace(/^\/api\/runtime/, '/api');
   const target = new URL(targetPath, `${runtimeUrl.replace(/\/$/, '')}/`);
   const headers = {
