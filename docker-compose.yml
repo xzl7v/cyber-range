@@ -6,11 +6,6 @@ services:
       - "80:80"
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
-<<<<<<< HEAD
-    depends_on:
-      - web-app
-      - runtime-manager
-=======
       - ./gateway/.htpasswd:/etc/nginx/.htpasswd:ro
       - ./gateway/index.html:/usr/share/nginx/html/index.html:ro
     networks:
@@ -18,9 +13,10 @@ services:
       - isolated-range
     depends_on:
       - student-node
-      - doctor-node
+      - runtime-manager
+      - web-app
+    restart: unless-stopped
 
-  # عقدة الطالب - كالي لينكس (معزولة عن الإنترنت)
   student-node:
     image: kasmweb/kali-rolling-desktop:1.16.0
     container_name: student-node
@@ -54,10 +50,9 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-
     networks:
+      - isolated-range
       - frontend-net
-    restart: unless-stopped
 
   web-app:
     build:
@@ -67,21 +62,14 @@ services:
     env_file:
       - .env
     environment:
-<<<<<<< HEAD
-      PORT: "3000"
-      CYBER_RANGE_RUNTIME_URL: "http://runtime-manager:3001"
-      LABS_DATABASE: "/data/labs.sqlite"
-=======
-      - VNC_PW=DoctorSecure2026!
-      - KASM_SVC_USER_PASSWORD=DoctorSecure2026!
-      - NO_auth=1
->>>>>>> bd6939e (update)
+      - PORT=3000
+      - CYBER_RANGE_RUNTIME_URL=http://runtime-manager:3001
+      - LABS_DATABASE=/data/labs.sqlite
     volumes:
       - labs-data:/data
     depends_on:
       - runtime-manager
     networks:
-<<<<<<< HEAD
       - frontend-net
     restart: unless-stopped
     healthcheck:
@@ -90,10 +78,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-=======
-      - isolated-range
-      - frontend-net
->>>>>>> bd6939e (update)
 
   runtime-manager:
     build:
@@ -103,9 +87,9 @@ services:
     env_file:
       - .env
     environment:
-      PORT: "3001"
-      DOCKER_SOCKET: "/var/run/docker.sock"
-      CYBER_RANGE_LAB_DEFINITIONS: "/app/lab-definitions.json"
+      - PORT=3001
+      - DOCKER_SOCKET=/var/run/docker.sock
+      - CYBER_RANGE_LAB_DEFINITIONS=/app/lab-definitions.json
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     extra_hosts:
@@ -123,13 +107,9 @@ services:
 networks:
   frontend-net:
     driver: bridge
-<<<<<<< HEAD
-
-volumes:
-  labs-data:
-=======
   isolated-range:
     driver: bridge
     internal: true
-    
->>>>>>> bd6939e (update)
+
+volumes:
+  labs-data:
