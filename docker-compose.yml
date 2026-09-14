@@ -3,7 +3,7 @@ services:
     image: nginx:alpine
     container_name: range-gateway
     ports:
-      - "80:80"
+      - "8080:80"
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./gateway/.htpasswd:/etc/nginx/.htpasswd:ro
@@ -28,7 +28,7 @@ services:
     environment:
       - VNC_PW=StudentSecure2026!
       - KASM_SVC_USER_PASSWORD=StudentSecure2026!
-      - NO_auth=1
+      - no_auth=1
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
       - START_VGL=1
