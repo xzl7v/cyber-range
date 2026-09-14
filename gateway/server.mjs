@@ -1,6 +1,7 @@
 import express from 'express';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createLabsModule } from '../labs-module/server/labs.js';
@@ -24,9 +25,10 @@ if (!existsSync(join(dist, 'index.html'))) throw new Error('Build the Labs modul
 const demoUserId = 'demo-user';
 const availableRoles = ['student', 'instructor'];
 
-const seedLabs = [
+const defaultSeedLabs = [
   {
     name: 'Hydra SSH Training Lab',
+    code: '01',
     slug: 'hydra',
     description: 'Practice password-cracking methodology against an intentionally vulnerable, isolated SSH training target.',
     difficulty: 'Easy',
@@ -51,6 +53,28 @@ const seedLabs = [
     ],
   },
 ];
+
+async function discoverSeedLabs() {
+  const root = process.env.CYBER_RANGE_LABS_ROOT || join(projectRoot, 'labs');
+  let entries;
+  try { entries = await readdir(root, { withFileTypes: true }); } catch { return []; }
+  const discovered = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    try {
+      const manifest = JSON.parse(await readFile(join(root, entry.name, 'lab.json'), 'utf8'));
+      if (manifest.name && manifest.slug && Array.isArray(manifest.tasks)) {
+        const { code, slug, name, description, difficulty, estimatedDuration, category, requiredTools, learningObjectives, instructions, enabled, published, tasks } = manifest;
+        discovered.push({ code, slug, name, description, difficulty, estimatedDuration, category, requiredTools, learningObjectives, instructions, enabled, published, tasks });
+      }
+    } catch {
+      // Optional lab modules may contain runtime-only manifests.
+    }
+  }
+  return discovered;
+}
+
+const seedLabs = [...defaultSeedLabs, ...(await discoverSeedLabs())];
 
 const cookieName = 'cyber_range_session';
 const tokenVersion = '1';
@@ -184,7 +208,7 @@ app.use('/api/runtime', async (request, response) => {
   response.set('Cache-Control', 'no-store');
   
   try {
-    const targetUrl = `http://runtime-manager:3001${request.originalUrl.replace('/api/runtime', '')}`;
+    const targetUrl = `http://runtime-manager:3001/api${request.originalUrl.replace('/api/runtime', '')}`;
     const proxyResponse = await fetch(targetUrl, {
       method: request.method,
       headers: {

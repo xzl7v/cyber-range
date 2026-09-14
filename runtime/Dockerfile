@@ -7,7 +7,7 @@ RUN npm ci --omit=dev
 
 COPY runtime/server.mjs ./
 COPY runtime/lab-definitions.json ./
-COPY labs/hydra ./labs/hydra
+COPY labs ./labs
 
 ENV NODE_ENV=production
 EXPOSE 3001

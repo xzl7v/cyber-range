@@ -1,0 +1,39 @@
+{
+  "id": "02",
+  "code": "02",
+  "slug": "dvwa",
+  "name": "DVWA Web Security Lab",
+  "description": "Practice safe web application reconnaissance and evidence collection against an isolated DVWA target.",
+  "difficulty": "Medium",
+  "estimatedDuration": 45,
+  "category": "Web security",
+  "requiredTools": ["Kali Linux", "Nmap", "Curl"],
+  "learningObjectives": ["Identify the isolated web target.", "Record the target response safely.", "Explain the observed web security control."],
+  "instructions": "Start the lab, inspect only the isolated target named dvwa, and record your observations before acknowledging each task.",
+  "enabled": true,
+  "published": true,
+  "kaliImage": "kasmweb/kali-rolling-desktop:1.16.0",
+  "tools": ["nmap", "curl", "nikto"],
+  "targets": [
+    {
+      "name": "dvwa",
+      "image": "vulnerables/web-dvwa:latest",
+      "healthcheck": ["CMD-SHELL", "php -r '$s=@fsockopen(\"127.0.0.1\",80,$e,$m,2); exit($s ? 0 : 1);'"]
+    }
+  ],
+  "tasks": [
+    {
+      "title": "Inspect the web target",
+      "description": "Use the isolated Kali workspace to inspect the DVWA target and record one useful observation.",
+      "score": 100,
+      "hints": ["The target hostname is dvwa.", "Keep all requests inside the lab network."],
+      "validationType": "acknowledgement",
+      "completionRequirements": "Acknowledge that you recorded an observation from the isolated target.",
+      "caseSensitive": true
+    }
+  ],
+  "resourceLimits": {
+    "kali": { "memory": 2147483648, "nanoCpus": 2000000000 },
+    "target": { "memory": 536870912, "nanoCpus": 1000000000 }
+  }
+}

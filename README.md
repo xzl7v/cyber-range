@@ -48,6 +48,32 @@ After login, choose the Student or Instructor workspace inside the application. 
 
 The first Hydra session may take time while Docker pulls the Kali image and builds the isolated SSH target. Sessions are removed automatically by the runtime manager after the configured TTL or when the student ends the lab.
 
+## Kasm performance and GPU path
+
+Dynamic Kali sessions use the CyberPod host's GPU when Docker advertises the NVIDIA runtime. The runtime checks Docker at session creation time and adds an NVIDIA device request only when available; set `CYBER_RANGE_GPU_MODE=disabled` to force the CPU/software fallback. A GPU is never required to start a lab.
+
+The session defaults are 2 GiB shared memory, 1280x720, 30 FPS, bandwidth-first KasmVNC quality, disabled XFCE compositing, and server-controlled desktop sizing. The legacy `student-node` service is not used by dynamic lab sessions.
+
+The measured baseline on this host was software `llvmpipe` rendering with 64 MiB shared memory and no GPU device request. The new session reported NVIDIA Zink rendering with `Accelerated: yes`, `runtime=nvidia`, a GPU device request, and 2 GiB shared memory. Both sessions used the same 2 vCPU/2 GiB resource limits; the first live startup after the image was cached completed in about 7 seconds.
+
+## Modular labs and CLI
+
+Each runtime module lives under `labs/<module>/lab.json` with its catalog metadata, tasks, target definitions, healthchecks, and resource limits. The gateway discovers catalog-ready manifests and adds only missing slugs to the database; instructor edits are preserved. The runtime discovers the same manifests for environment provisioning.
+
+Use the thin host-side client with credentials from `.env`:
+
+```sh
+export CYBERLAB_USERNAME="$DEMO_USERNAME" CYBERLAB_PASSWORD="$DEMO_PASSWORD"
+./cyberlab list
+./cyberlab info 01
+./cyberlab start 01
+./cyberlab status
+./cyberlab stop
+./cyberlab restart 02
+```
+
+The CLI only calls the authenticated Labs and runtime APIs; Docker orchestration remains in the runtime manager. A runtime restart removes stale resources with the CyberPod session label so orphaned Kali/target containers and networks do not accumulate.
+
 ## Local Labs-module checks
 
 ```sh

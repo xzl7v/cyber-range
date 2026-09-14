@@ -70,7 +70,14 @@ export function createRuntimeApi({ baseUrl = '/api/runtime', getRequestHeaders }
   return {
     startSession: (body) => request('/sessions', { method: 'POST', body }),
     getSession: (id) => request(`/sessions/${encodeURIComponent(id)}`),
-    getSessionByAttempt: (attemptId) => request(`/sessions?attemptId=${encodeURIComponent(attemptId)}`),
+    getSessionByAttempt: async (attemptId) => {
+      try {
+        return await request(`/sessions?attemptId=${encodeURIComponent(attemptId)}`)
+      } catch (error) {
+        if (error.status === 404) return { session: null }
+        throw error
+      }
+    },
     stopSession: (id) => request(`/sessions/${encodeURIComponent(id)}/stop`, { method: 'POST', body: {} }),
     deleteSession: (id) => request(`/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   }

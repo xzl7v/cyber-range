@@ -10,7 +10,7 @@ The local development server runs with an explicit `--dev` flag, binds to loopba
 
 ## Payloads
 
-Lab fields: `id`, `slug`, `name`, `description`, `difficulty` (`Easy`, `Medium`, `Hard`), `estimatedDuration` (minutes), `category`, `requiredTools` (string array), `learningObjectives` (string array), `instructions`, `enabled`, `published`, `createdAt`, `updatedAt`, `revision`, `taskCount`, `totalScore`.
+Lab fields: `id`, `code`, `slug`, `name`, `description`, `difficulty` (`Easy`, `Medium`, `Hard`), `estimatedDuration` (minutes), `category`, `requiredTools` (string array), `learningObjectives` (string array), `instructions`, `enabled`, `published`, `createdAt`, `updatedAt`, `revision`, `taskCount`, `totalScore`.
 
 Lab detail includes `tasks` ordered by `order`. Task fields: `id`, `labId`, `title`, `description`, `order`, `score`, `hints` (string array), `validationType` (`flag`, `answer`, `acknowledgement`), `completionRequirements` (instructional text), `requiresPrevious` (boolean), `caseSensitive` (boolean). Instructor responses additionally include `hasAnswer`. Student responses never include `hasAnswer`, `expectedAnswer`, answer hashes, or answer salts. `expectedAnswer` is a write-only instructor input; omission preserves the current answer and an empty value clears it. Expected answers must never be returned by any endpoint. A published flag/answer task cannot lose its required answer; acknowledgement tasks do not require an answer. Lab total score is the sum of task scores.
 

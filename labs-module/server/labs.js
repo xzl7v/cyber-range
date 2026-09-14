@@ -49,7 +49,7 @@ function secretFor(answer) {
   const salt = randomBytes(16).toString('hex');
   return { salt, hash: hash(answer, salt), foldedHash: hash(answer.toLowerCase(), salt) };
 }
-const labFields = ['name', 'slug', 'description', 'difficulty', 'estimatedDuration', 'category', 'requiredTools', 'learningObjectives', 'instructions', 'enabled', 'published'];
+const labFields = ['code', 'name', 'slug', 'description', 'difficulty', 'estimatedDuration', 'category', 'requiredTools', 'learningObjectives', 'instructions', 'enabled', 'published'];
 const taskFields = ['title', 'description', 'score', 'hints', 'validationType', 'completionRequirements', 'requiresPrevious', 'caseSensitive'];
 
 export function createLabsModule({ databasePath, resolveUser, runtime, seedLabs = [] }) {
@@ -116,7 +116,7 @@ export function createLabsModule({ databasePath, resolveUser, runtime, seedLabs 
     }
     const timestamp = now();
     const lab = existing ? { ...existing } : {
-      id: randomUUID(), name: '', slug: '', description: '', difficulty: 'Easy', estimatedDuration: 30,
+      id: randomUUID(), code: '', name: '', slug: '', description: '', difficulty: 'Easy', estimatedDuration: 30,
       category: '', requiredTools: [], learningObjectives: [], instructions: '', enabled: true,
       published: false, createdAt: timestamp, revision: 0, tasks: [],
     };
@@ -395,8 +395,13 @@ export function createLabsModule({ databasePath, resolveUser, runtime, seedLabs 
     if (error.type === 'entity.parse.failed' || error.type === 'entity.too.large') return response.status(400).json({ error: { code: 'INVALID_JSON', message: 'Send valid JSON smaller than 1 MB.' } });
     response.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'The request could not be completed.' } });
   });
-  if (seedLabs.length && db.prepare('SELECT COUNT(*) AS count FROM labs').get().count === 0) {
-    for (const seed of seedLabs) transaction(() => saveLab(parseLab(seed)));
+  for (const seed of seedLabs) {
+    const existing = db.prepare('SELECT id, data FROM labs WHERE slug = ?').get(seed.slug);
+    if (!existing) transaction(() => saveLab(parseLab(seed)));
+    else if (seed.code && !JSON.parse(existing.data).code) {
+      const data = { ...JSON.parse(existing.data), code: text(seed.code, 'code', 32) };
+      db.prepare('UPDATE labs SET data = ? WHERE id = ?').run(JSON.stringify(data), existing.id);
+    }
   }
   return { router, close: () => db.close() };
 }

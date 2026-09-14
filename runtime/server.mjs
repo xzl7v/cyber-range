@@ -2,7 +2,7 @@ import express from 'express';
 import Docker from 'dockerode';
 import httpProxy from 'http-proxy';
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import { hostname } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -16,7 +16,29 @@ const sessionTtlMs = Number(process.env.CYBER_RANGE_SESSION_TTL_MS || 4 * 60 * 6
 const kaliImage = process.env.CYBER_RANGE_KALI_IMAGE || '';
 const vncPassword = process.env.CYBER_RANGE_VNC_PASSWORD || randomUUID();
 const kasmAuthorization = `Basic ${Buffer.from(`kasm_user:${vncPassword}`).toString('base64')}`;
-const definitions = JSON.parse(await readFile(process.env.CYBER_RANGE_LAB_DEFINITIONS || join(moduleDirectory, 'lab-definitions.json'), 'utf8'));
+async function loadDefinitions() {
+  const fallback = JSON.parse(await readFile(process.env.CYBER_RANGE_LAB_DEFINITIONS || join(moduleDirectory, 'lab-definitions.json'), 'utf8'));
+  const labsRoot = process.env.CYBER_RANGE_LABS_ROOT || join(moduleDirectory, 'labs');
+  let entries;
+  try {
+    entries = await readdir(labsRoot, { withFileTypes: true });
+  } catch {
+    return fallback;
+  }
+  const discovered = { ...fallback };
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    try {
+      const manifest = JSON.parse(await readFile(join(labsRoot, entry.name, 'lab.json'), 'utf8'));
+      const key = String(manifest.slug || entry.name);
+      discovered[key] = { ...fallback[key], ...manifest };
+    } catch {
+      // A missing or invalid optional manifest does not prevent the runtime from starting.
+    }
+  }
+  return discovered;
+}
+const definitions = await loadDefinitions();
 
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be an integer from 1 to 65535.');
 if (!Number.isFinite(sessionTtlMs) || sessionTtlMs < 60000) throw new Error('CYBER_RANGE_SESSION_TTL_MS must be at least 60000.');
@@ -25,6 +47,8 @@ const docker = new Docker({ socketPath: dockerSocket });
 const proxy = httpProxy.createProxyServer({ ws: true, secure: false });
 const sessions = new Map();
 const sessionsByAttempt = new Map();
+const gpuMode = String(process.env.CYBER_RANGE_GPU_MODE || 'auto').toLowerCase();
+let gpuConfigPromise;
 const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
@@ -35,6 +59,20 @@ function fail(status, code, message, fields) {
   error.code = code;
   error.fields = fields;
   return error;
+}
+async function optionalGpuConfig() {
+  if (gpuMode === 'disabled' || gpuMode === 'off' || gpuMode === 'false') return null;
+  if (!gpuConfigPromise) {
+    gpuConfigPromise = docker.info().then((info) => {
+      if (!info.Runtimes?.nvidia) return null;
+      return {
+        runtime: 'nvidia',
+        deviceRequests: [{ Driver: 'nvidia', Count: -1, Capabilities: [['gpu']] }],
+        environment: ['NVIDIA_VISIBLE_DEVICES=all', 'NVIDIA_DRIVER_CAPABILITIES=compute,graphics,video,utility'],
+      };
+    }).catch(() => null);
+  }
+  return gpuConfigPromise;
 }
 function sessionForRequest(request, sessionId = request.params?.sessionId) {
   if (sessionId) return sessions.get(sessionId) || null;
@@ -135,6 +173,15 @@ async function cleanupContainers(session) {
     try { await docker.getNetwork(session.networkName).remove(); } catch { /* Network removal is best effort. */ }
   }
 }
+async function cleanupOrphanedSessions() {
+  const containers = await docker.listContainers({ all: true, filters: { label: ['cyber-range.session'] } });
+  for (const containerInfo of containers) await removeContainer(containerInfo.Id);
+  const networks = await docker.listNetworks({ filters: { label: ['cyber-range.session'] } });
+  for (const networkInfo of networks) {
+    try { await docker.getNetwork(networkInfo.Id).remove(); } catch { /* A partially cleaned session is harmless on startup. */ }
+  }
+  if (containers.length || networks.length) console.log(`Removed ${containers.length} orphaned session containers and ${networks.length} networks.`);
+}
 async function startContainers(session) {
   for (const target of session.targets || []) await docker.getContainer(target.containerId).start();
   await docker.getContainer(session.kaliContainerId).start();
@@ -155,6 +202,7 @@ async function createSession(input) {
     await cleanupContainers(existing);
   }
   const definition = definitionFor(labSlug);
+  const gpu = await optionalGpuConfig();
   const sessionId = randomUUID();
   const safe = safePart(sessionId);
   const session = {
@@ -216,19 +264,36 @@ async function createSession(input) {
       Image: kaliImageName,
       Hostname: `kali-${safe}`,
       ExposedPorts: { '6901/tcp': {} },
-      Env: [`VNC_PW=${vncPassword}`, `KASM_SVC_USER_PASSWORD=${vncPassword}`, 'NO_auth=1'],
+      Env: [
+        `VNC_PW=${vncPassword}`,
+        `KASM_SVC_USER_PASSWORD=${vncPassword}`,
+        'NO_auth=1',
+        'KASM_SVC_AUDIO=0',
+        'KASM_SVC_AUDIO_INPUT=0',
+        'KASM_SVC_GAMEPAD=0',
+        'KASM_SVC_PRINTER=0',
+        'KASM_SVC_RECORDER=0',
+        'KASM_SVC_WEBCAM=0',
+        'VNC_RESOLUTION=1280x720',
+        'MAX_FRAME_RATE=30',
+        'VNCOPTIONS=-PreferBandwidth -DynamicQualityMin=4 -DynamicQualityMax=7 -IgnoreClientSettingsKasm 1 -AcceptSetDesktopSize 0 -DLP_ClipDelay=0',
+        ...(gpu ? ['HW3D=1', 'DRINODE=/dev/dri/renderD128', ...gpu.environment] : []),
+      ],
       HostConfig: {
         NetworkMode: session.networkName,
+        ShmSize: 2147483648,
         Memory: definition.resourceLimits?.kali?.memory || 2147483648,
         NanoCpus: definition.resourceLimits?.kali?.nanoCpus || 2000000000,
         RestartPolicy: { Name: 'no' },
         SecurityOpt: ['no-new-privileges'],
+        ...(gpu ? { Runtime: gpu.runtime, DeviceRequests: gpu.deviceRequests } : {}),
       },
       Labels: { 'cyber-range.session': sessionId, 'cyber-range.attempt': attemptId, 'cyber-range.role': 'kali' },
     });
     session.kaliContainerId = kaliContainer.id;
     session.kaliProxyHost = session.kaliContainerName;
     session.kaliProxyPort = 6901;
+    session.gpu = Boolean(gpu);
     session.status = 'STARTING';
     console.log(`Starting containers for session ${sessionId}.`);
     await startContainers(session);
@@ -353,6 +418,8 @@ app.use((error, request, response, next) => {
   if (error.type === 'entity.parse.failed' || error.type === 'entity.too.large') return response.status(400).json({ error: { code: 'INVALID_JSON', message: 'Send valid JSON smaller than 1 MB.' } });
   response.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'The runtime manager could not complete the request.' } });
 });
+
+await cleanupOrphanedSessions();
 
 const server = app.listen(port, '0.0.0.0', () => {
   console.log(`Cyber Range runtime manager listening on http://0.0.0.0:${port}`);

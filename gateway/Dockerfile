@@ -18,6 +18,7 @@ WORKDIR /app/gateway
 
 COPY gateway/server.mjs ./
 COPY gateway/public ./public
+COPY labs /app/labs
 COPY labs-module/server/labs.js /app/labs-module/server/labs.js
 COPY --from=frontend /labs/dist /app/labs-module/dist
 

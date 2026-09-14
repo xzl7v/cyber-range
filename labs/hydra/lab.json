@@ -1,0 +1,46 @@
+{
+  "id": "01",
+  "code": "01",
+  "slug": "hydra",
+  "name": "Hydra SSH Training Lab",
+  "description": "Practice password-cracking methodology against an intentionally vulnerable, isolated SSH training target.",
+  "difficulty": "Easy",
+  "estimatedDuration": 30,
+  "category": "Password security",
+  "requiredTools": ["Kali Linux", "Hydra", "SSH"],
+  "learningObjectives": ["Identify an SSH service on an isolated target.", "Run Hydra only against the authorized training target.", "Submit the discovered training credentials."],
+  "instructions": "Start the lab to open your isolated Kali desktop. From the Kali terminal, identify the target named target, then use Hydra against its SSH service. The training user is trainee. Submit the discovered password below.",
+  "enabled": true,
+  "published": true,
+  "kaliImage": "kasmweb/kali-rolling-desktop:1.16.0",
+  "tools": ["hydra", "nmap", "ssh"],
+  "targets": [
+    {
+      "name": "target",
+      "image": "cyber-range/hydra-target:local",
+      "build": {
+        "context": "/app/labs/hydra",
+        "dockerfile": "Dockerfile",
+        "target": "ssh-target",
+        "src": ["Dockerfile", "sshd_config", "passwords.txt"]
+      },
+      "healthcheck": ["CMD-SHELL", "ssh-keyscan -t ed25519 -T 2 127.0.0.1 2>/dev/null | grep -q ssh-ed25519"]
+    }
+  ],
+  "tasks": [
+    {
+      "title": "Discover the SSH password",
+      "description": "Use Hydra from your Kali desktop against the isolated SSH target. Submit the discovered password.",
+      "score": 100,
+      "hints": ["The target hostname is target.", "The target user is trainee.", "Hydra supports the ssh protocol."],
+      "validationType": "answer",
+      "expectedAnswer": "Lab12345",
+      "completionRequirements": "Submit the discovered password.",
+      "caseSensitive": true
+    }
+  ],
+  "resourceLimits": {
+    "kali": { "memory": 2147483648, "nanoCpus": 2000000000 },
+    "target": { "memory": 268435456, "nanoCpus": 500000000 }
+  }
+}
