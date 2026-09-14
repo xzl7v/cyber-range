@@ -4,6 +4,7 @@ import { Icon } from './icons.jsx'
 
 const API_BASE = import.meta.env.VITE_LABS_API_BASE || '/api'
 const PERSONA_KEY = 'cyberpod-labs-development-identity'
+const THEME_KEY = 'cyberpod-labs-theme'
 const labRoute = (id, edit = false) => `#labs/${encodeURIComponent(id)}${edit ? '/edit' : ''}`
 
 function readRoute() {
@@ -98,6 +99,10 @@ function EmptyState({ icon = 'labs', title, children, action }) {
   return <div className="empty-state"><div className="empty-icon"><Icon name={icon} size={30}/></div><h2>{title}</h2><p>{children}</p>{action}</div>
 }
 
+function ThemeToggle({ theme, onThemeChange }) {
+  return <button className="theme-toggle" onClick={() => onThemeChange(theme === 'light' ? 'dark' : 'light')} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`} title={`${theme === 'light' ? 'Dark' : 'Light'} mode`}><Icon name={theme === 'light' ? 'moon' : 'sun'} size={16}/></button>
+}
+
 export function LabsModule({ user, apiBase = '/api', runtimeApi, getRequestHeaders, devUserId, developmentUsers, onIdentityChange }) {
   const headersRef = useRef(getRequestHeaders)
   headersRef.current = getRequestHeaders
@@ -105,12 +110,19 @@ export function LabsModule({ user, apiBase = '/api', runtimeApi, getRequestHeade
   const [route, setRoute] = useState(readRoute)
   const [notice, setNotice] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [theme, setTheme] = useState(() => { try { return sessionStorage.getItem(THEME_KEY) || 'light' } catch { return 'light' } })
   const pending = useRef(false)
   const dirty = useRef(false)
   const acceptedHash = useRef(window.location.hash || '#labs')
   const instructor = user?.role === 'instructor'
   const markDirty = useCallback((value) => { dirty.current = value }, [])
   const discardAllowed = () => !dirty.current || window.confirm('You have unsaved changes. Leave without saving?')
+  
+  useEffect(() => {
+    try { sessionStorage.setItem(THEME_KEY, theme) } catch { }
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
+  
   function navigate(hash, { force = false } = {}) {
     if (!force && !discardAllowed()) return false
     dirty.current = false
@@ -146,7 +158,7 @@ export function LabsModule({ user, apiBase = '/api', runtimeApi, getRequestHeade
     finally { pending.current = false; setBusy(false) }
   }
   async function labAction(lab, action, after) {
-    if (action === 'delete' && !window.confirm(`Delete “${lab.name || 'Untitled lab'}”? This also deletes its tasks and student progress. This cannot be undone.`)) return
+    if (action === 'delete' && !window.confirm(`Delete "${lab.name || 'Untitled lab'}"? This also deletes its tasks and student progress. This cannot be undone.`)) return
     try {
       await run(async () => {
         if (action === 'delete') await api.deleteLab(lab.id)
@@ -160,7 +172,7 @@ export function LabsModule({ user, apiBase = '/api', runtimeApi, getRequestHeade
   if (!user || !['student', 'instructor'].includes(user.role)) return <div className="module-unavailable"><Alert error={new Error('The host application must provide a student or instructor identity.')}/></div>
   const viewProps = { api, runtimeApi, instructor, busy, run, navigate, labAction, setNotice }
   const routeKey = `${user.id}:${route.type}:${route.id || ''}`
-  return <div className="labs-app">
+  return <div className="labs-app" data-theme={theme}>
     <aside className="side-rail">
       <button className="brand" onClick={() => navigate('#labs')} aria-label="CyberPod labs"><span className="brand-symbol"><Icon name="labs" size={27}/></span><span><strong>CyberPod<span className="brand-dot">.</span></strong><small>LABS MODULE</small></span></button>
       <div className="rail-label">WORKSPACE</div>
@@ -169,9 +181,9 @@ export function LabsModule({ user, apiBase = '/api', runtimeApi, getRequestHeade
       <div className="rail-profile"><span className="avatar">{(user.displayName || user.id).slice(0, 1).toUpperCase()}</span><div><strong>{user.displayName || user.id}</strong><span>{instructor ? 'Instructor workspace' : 'Student workspace'}</span></div></div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div className="breadcrumb"><span>Workspace</span><span>/</span><strong>{instructor ? 'Lab management' : 'Available labs'}</strong></div>{developmentUsers && <div className="development-control"><span className="development-badge"><i/>Development mode</span><label className="identity-select"><span className="sr-only">Development identity</span><select aria-label="Development identity" value={user.id} disabled={busy} onChange={(event) => { if (discardAllowed()) { dirty.current = false; navigate('#labs', { force: true }); onIdentityChange(event.target.value) } }}>
+      <header className="topbar"><div className="breadcrumb"><span>Workspace</span><span>/</span><strong>{instructor ? 'Lab management' : 'Available labs'}</strong></div><div className="topbar-controls">{developmentUsers && <div className="development-control"><span className="development-badge"><i/>Development mode</span><label className="identity-select"><span className="sr-only">Development identity</span><select aria-label="Development identity" value={user.id} disabled={busy} onChange={(event) => { if (discardAllowed()) { dirty.current = false; navigate('#labs', { force: true }); onIdentityChange(event.target.value) } }}>
         {developmentUsers.map((identity) => <option key={identity.id} value={identity.id}>{identity.displayName}</option>)}
-      </select></label></div>}</header>
+      </select></label></div>}<ThemeToggle theme={theme} onThemeChange={setTheme}/></div></header>
       <main className="main-content" id="labs-content">
         {notice?.error && <Alert error={notice.error}/>}
         {notice?.message && <div className="notice notice-success" role="status"><Icon name="check"/><span>{notice.message}</span><button className="icon-button" aria-label="Dismiss message" onClick={() => setNotice(null)}><Icon name="close" size={16}/></button></div>}
@@ -192,7 +204,14 @@ function Catalog({ api, instructor, busy, navigate, labAction }) {
   const labs = resource.data?.labs || []
   const filtered = labs.filter((lab) => `${lab.name} ${lab.description} ${lab.category}`.toLowerCase().includes(search.toLowerCase()) && (filter === 'all' || (filter === 'published' ? lab.published : filter === 'draft' ? !lab.published : lab.difficulty === filter)))
   return <>
-    <div className="page-heading"><div><div className="eyebrow">{instructor ? 'CREATE · TEACH · ITERATE' : 'EXPLORE · PRACTICE · GROW'}</div><h1>{instructor ? 'Your learning labs' : 'Find your next challenge'}</h1><p>{instructor ? 'Create purposeful labs and give your students a place to practice.' : 'Build practical skills, one focused lab at a time.'}</p></div>{instructor && <button className="button primary" disabled={busy} onClick={() => navigate('#labs/new')}><Icon name="plus" size={18}/>Create lab</button>}</div>
+   <div className="page-heading">
+  <div>
+    <div className="eyebrow">{instructor ? 'CREATE · TEACH · ITERATE' : 'EXPLORE · PRACTICE · GROW'}</div>
+    <h1>{instructor ? 'Your learning labs' : 'Find your next challenge'}</h1>
+    <p>{instructor ? 'Create purposeful labs and give your students a place to practice.' : 'Build practical skills, one focused lab at a time.'}</p>
+  </div>
+  {instructor && <button className="button primary" disabled={busy} onClick={() => navigate('#labs/new')}><Icon name="plus" size={18}/>Create lab</button>}
+</div>
     {!resource.loading && resource.data && <div className="catalog-summary"><div><strong>{labs.length.toString().padStart(2, '0')}</strong><span>{instructor ? 'Total labs' : 'Available labs'}</span></div><div><strong>{(instructor ? labs.filter((lab) => lab.published && lab.enabled).length : labs.reduce((sum, lab) => sum + (lab.taskCount || 0), 0)).toString().padStart(2, '0')}</strong><span>{instructor ? 'Live for students' : 'Practical tasks'}</span></div><div className="summary-note"><Icon name={instructor ? 'book' : 'target'} size={24}/><p>{instructor ? 'Draft at your own pace. Publish when your lab is ready.' : 'Your progress is saved as you complete each task.'}</p></div></div>}
     <div className="catalog-toolbar"><div className="section-title"><h2>{instructor ? 'Lab library' : 'Available labs'}</h2>{!resource.loading && <span>{filtered.length}</span>}</div><div className="catalog-filters"><label className="search-box"><Icon name="search" size={18}/><input aria-label="Search labs" placeholder="Search labs…" value={search} onChange={(event) => setSearch(event.target.value)}/></label><select aria-label={instructor ? 'Filter by publication status' : 'Filter by difficulty'} value={filter} onChange={(event) => setFilter(event.target.value)}>{instructor ? <><option value="all">All statuses</option><option value="published">Published</option><option value="draft">Drafts</option></> : <><option value="all">All difficulties</option><option>Easy</option><option>Medium</option><option>Hard</option></>}</select></div></div>
     <Alert error={resource.error} onRetry={resource.refresh}/>
@@ -364,6 +383,12 @@ export default function App() {
   const [userId, setUserId] = useState(() => { try { return sessionStorage.getItem(PERSONA_KEY) || 'instructor' } catch { return 'instructor' } })
   const [error, setError] = useState(null)
   const [retry, setRetry] = useState(0)
+  const [theme, setTheme] = useState(() => { try { return sessionStorage.getItem(THEME_KEY) || 'light' } catch { return 'light' } })
+  
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
+  
   useEffect(() => {
     let active = true
     setError(null)
