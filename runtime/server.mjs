@@ -251,7 +251,7 @@ function requireStudentMatch(request, session) {
 app.get('/health', (request, response) => response.json({ ok: true }));
 app.post('/api/sessions', async (request, response) => {
   const studentId = String(request.body?.studentId || '').trim();
-  if (request.get('X-Runtime-User-Id') !== studentId) fail(403, 'FORBIDDEN', 'The authenticated student does not match the requested session.');
+  if (request.get('X-Runtime-User-Id') !== studentId) throw fail(403, 'FORBIDDEN', 'The authenticated student does not match the requested session.');
   try {
     const session = await createSession(request.body);
     response.json({ session: publicSession(session) });
