@@ -54,7 +54,7 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
->>>>>>> bd6939e (update)
+
     networks:
       - frontend-net
     restart: unless-stopped
