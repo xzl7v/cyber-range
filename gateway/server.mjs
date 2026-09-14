@@ -180,28 +180,32 @@ app.use('/api/labs-module', labs.router);
 app.use('/api/runtime', async (request, response) => {
   if (!request.user) return response.status(401).json({ error: { code: 'AUTH_REQUIRED', message: 'Sign in to continue.' } });
   if (request.user.role !== 'student') return response.status(403).json({ error: { code: 'FORBIDDEN', message: 'Select the student workspace before using the runtime.' } });
+  
   response.set('Cache-Control', 'no-store');
-  const targetPath = request.originalUrl.replace(/^\/api\/runtime/, '/api');
-  const target = new URL(targetPath, `${runtimeUrl.replace(/\/$/, '')}/`);
-  const headers = {
-    'Content-Type': 'application/json',
-    'X-Runtime-User-Id': request.user.id,
-    'X-Runtime-User-Role': request.user.role,
-  };
-  const body = ['GET', 'HEAD'].includes(request.method) ? undefined : JSON.stringify(request.body || {});
-  let upstream;
+  
   try {
-    upstream = await fetch(target, {
+    const targetUrl = `http://runtime-manager:3001${request.originalUrl.replace('/api/runtime', '')}`;
+    const proxyResponse = await fetch(targetUrl, {
       method: request.method,
-      headers,
-      body,
-      signal: AbortSignal.timeout(600000),
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Runtime-User-Id': request.user.id,
+      },
+      body: ['GET', 'HEAD'].includes(request.method) ? undefined : JSON.stringify(request.body),
     });
-  } catch {
-    return response.status(502).json({ error: { code: 'RUNTIME_UNAVAILABLE', message: 'The runtime service is not available.' } });
+    
+    const text = await proxyResponse.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = { error: { code: 'INVALID_JSON', message: text || 'Unreadable response from runtime.' } };
+    }
+    
+    response.status(proxyResponse.status).json(data);
+  } catch (error) {
+    response.status(502).json({ error: { code: 'RUNTIME_UNREACHABLE', message: 'Unable to reach the runtime manager.' } });
   }
-  const data = await upstream.json().catch(() => ({}));
-  response.status(upstream.status).json(data);
 });
 
 app.get('/', (request, response) => response.redirect(request.user ? '/app' : '/login'));

@@ -3,15 +3,56 @@ services:
     image: nginx:alpine
     container_name: range-gateway
     ports:
-      - "80:80"
+      - "8080:80"
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - web-app
-      - runtime-manager
+      - ./gateway/.htpasswd:/etc/nginx/.htpasswd:ro
+      - ./gateway/index.html:/usr/share/nginx/html/index.html:ro
     networks:
       - frontend-net
+      - isolated-range
+    depends_on:
+      - student-node
+      - runtime-manager
+      - web-app
     restart: unless-stopped
+
+  student-node:
+    image: kasmweb/kali-rolling-desktop:1.16.0
+    container_name: student-node
+    ports:
+      - "127.0.0.1:6901:6901"
+      - "127.0.0.1:4901:4901"
+    shm_size: '2gb'
+    restart: unless-stopped
+    environment:
+      - VNC_PW=StudentSecure2026!
+      - KASM_SVC_USER_PASSWORD=StudentSecure2026!
+      - no_auth=1
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - START_VGL=1
+    devices:
+      - /dev/dri/card1:/dev/dri/card1
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/nvidia0:/dev/nvidia0
+      - /dev/nvidiactl:/dev/nvidiactl
+      - /dev/nvidia-modeset:/dev/nvidia-modeset
+      - /dev/nvidia-uvm:/dev/nvidia-uvm
+      - /dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools
+    group_add:
+      - "987"
+      - "video"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - isolated-range
+      - frontend-net
 
   web-app:
     build:
@@ -21,9 +62,9 @@ services:
     env_file:
       - .env
     environment:
-      PORT: "3000"
-      CYBER_RANGE_RUNTIME_URL: "http://runtime-manager:3001"
-      LABS_DATABASE: "/data/labs.sqlite"
+      - PORT=3000
+      - CYBER_RANGE_RUNTIME_URL=http://runtime-manager:3001
+      - LABS_DATABASE=/data/labs.sqlite
     volumes:
       - labs-data:/data
     depends_on:
@@ -46,9 +87,9 @@ services:
     env_file:
       - .env
     environment:
-      PORT: "3001"
-      DOCKER_SOCKET: "/var/run/docker.sock"
-      CYBER_RANGE_LAB_DEFINITIONS: "/app/lab-definitions.json"
+      - PORT=3001
+      - DOCKER_SOCKET=/var/run/docker.sock
+      - CYBER_RANGE_LAB_DEFINITIONS=/app/lab-definitions.json
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     extra_hosts:
@@ -66,6 +107,9 @@ services:
 networks:
   frontend-net:
     driver: bridge
+  isolated-range:
+    driver: bridge
+    internal: true
 
 volumes:
   labs-data:

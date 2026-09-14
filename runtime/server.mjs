@@ -170,7 +170,7 @@ async function createSession(input) {
     kaliContainerName: `cybr-kali-${safe}`,
     kaliContainerId: '',
     kaliProxyPort: 0,
-    kaliUrl: `/sessions/${sessionId}/kali/vnc.html?autoconnect=1&resize=scale&path=sessions/${sessionId}/kali/websockify`,
+    kaliUrl: `/sessions/${sessionId}/kali/?autoclose=1&username=user&password=StudentSecure2026!`,
     targets: [],
   };
   sessions.set(sessionId, session);
