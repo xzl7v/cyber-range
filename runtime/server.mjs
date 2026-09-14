@@ -245,7 +245,7 @@ async function createSession(input) {
   }
 }
 function requireStudentMatch(request, session) {
-  if (!session || request.get('X-Runtime-User-Id') !== session.studentId) fail(404, 'NOT_FOUND', 'Runtime session not found.');
+  if (!session || request.get('X-Runtime-User-Id') !== session.studentId) throw fail(404, 'NOT_FOUND', 'Runtime session not found.');
 }
 
 app.get('/health', (request, response) => response.json({ ok: true }));
