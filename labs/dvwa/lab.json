@@ -12,7 +12,12 @@
   "instructions": "Start the lab, inspect only the isolated target named dvwa, and record your observations before acknowledging each task.",
   "enabled": true,
   "published": true,
-  "kaliImage": "kasmweb/kali-rolling-desktop:1.16.0",
+  "kaliImage": "cyber-range/kali-optimized:v3",
+  "kaliBuild": {
+    "context": "/app/labs/kali",
+    "dockerfile": "Dockerfile",
+    "src": ["Dockerfile", "kasmvnc.yaml"]
+  },
   "tools": ["nmap", "curl", "nikto"],
   "targets": [
     {

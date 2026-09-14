@@ -13,47 +13,9 @@ services:
       - frontend-net
       - isolated-range
     depends_on:
-      - student-node
       - runtime-manager
       - web-app
     restart: unless-stopped
-
-  student-node:
-    image: kasmweb/kali-rolling-desktop:1.16.0
-    container_name: student-node
-    ports:
-      - "127.0.0.1:6901:6901"
-      - "127.0.0.1:4901:4901"
-    shm_size: '2gb'
-    restart: unless-stopped
-    environment:
-      - VNC_PW=StudentSecure2026!
-      - KASM_SVC_USER_PASSWORD=StudentSecure2026!
-      - no_auth=1
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
-      - START_VGL=1
-    devices:
-      - /dev/dri/card1:/dev/dri/card1
-      - /dev/dri/renderD128:/dev/dri/renderD128
-      - /dev/nvidia0:/dev/nvidia0
-      - /dev/nvidiactl:/dev/nvidiactl
-      - /dev/nvidia-modeset:/dev/nvidia-modeset
-      - /dev/nvidia-uvm:/dev/nvidia-uvm
-      - /dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools
-    group_add:
-      - "987"
-      - "video"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    networks:
-      - isolated-range
-      - frontend-net
 
   web-app:
     build:

@@ -233,7 +233,7 @@ async function createSession(input) {
     });
     await docker.getNetwork(session.networkName).connect({ Container: runtimeContainerId });
     const kaliImageName = kaliImage || definition.kaliImage;
-    await ensureImage(kaliImageName);
+    await ensureImage(kaliImageName, definition.kaliBuild);
     session.targets = await Promise.all((definition.targets || []).map(async (targetDefinition, index) => {
       const targetName = targetDefinition.name || `target-${index + 1}`;
       await ensureImage(targetDefinition.image, targetDefinition.build);
@@ -276,7 +276,7 @@ async function createSession(input) {
         'KASM_SVC_WEBCAM=0',
         'VNC_RESOLUTION=1280x720',
         'MAX_FRAME_RATE=30',
-        'VNCOPTIONS=-PreferBandwidth -DynamicQualityMin=4 -DynamicQualityMax=7 -IgnoreClientSettingsKasm 1 -AcceptSetDesktopSize 0 -DLP_ClipDelay=0',
+        'VNCOPTIONS=-PreferBandwidth -DynamicQualityMin=4 -DynamicQualityMax=7 -IgnoreClientSettingsKasm 1 -AcceptSetDesktopSize 0 -PublicIP 127.0.0.1 -DLP_ClipDelay=0',
         ...(gpu ? ['HW3D=1', 'DRINODE=/dev/dri/renderD128', ...gpu.environment] : []),
       ],
       HostConfig: {
@@ -291,7 +291,8 @@ async function createSession(input) {
       Labels: { 'cyber-range.session': sessionId, 'cyber-range.attempt': attemptId, 'cyber-range.role': 'kali' },
     });
     session.kaliContainerId = kaliContainer.id;
-    session.kaliProxyHost = session.kaliContainerName;
+    const kaliInfo = await kaliContainer.inspect();
+    session.kaliProxyHost = kaliInfo.NetworkSettings?.Networks?.[session.networkName]?.IPAddress || session.kaliContainerName;
     session.kaliProxyPort = 6901;
     session.gpu = Boolean(gpu);
     session.status = 'STARTING';

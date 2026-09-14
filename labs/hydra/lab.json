@@ -12,7 +12,12 @@
   "instructions": "Start the lab to open your isolated Kali desktop. From the Kali terminal, identify the target named target, then use Hydra against its SSH service. The training user is trainee. Submit the discovered password below.",
   "enabled": true,
   "published": true,
-  "kaliImage": "kasmweb/kali-rolling-desktop:1.16.0",
+  "kaliImage": "cyber-range/kali-optimized:v3",
+  "kaliBuild": {
+    "context": "/app/labs/kali",
+    "dockerfile": "Dockerfile",
+    "src": ["Dockerfile", "kasmvnc.yaml"]
+  },
   "tools": ["hydra", "nmap", "ssh"],
   "targets": [
     {
