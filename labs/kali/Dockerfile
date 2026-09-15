@@ -30,7 +30,6 @@ RUN apt-get update \
 		xfce4-terminal nmap hydra curl netcat-openbsd whatweb gobuster ffuf tcpdump \
 		iproute2 iputils-ping net-tools openssh-client wget ca-certificates firefox-esr thunar \
 	&& apt-get purge -y burpsuite john john-data metasploit-framework \
-	&& apt-get autoremove -y --purge \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/lists/* /var/cache/apt/* /tmp/* /var/tmp/* \
 		/home/kasm-user/.cache /root/.cache \
