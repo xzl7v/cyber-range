@@ -5,42 +5,434 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Cyber Range Sign in</title>
   <style>
-    :root { color-scheme: dark; --bg:#0d1117; --panel:#161b22; --line:#30363d; --text:#c9d1d9; --muted:#8b949e; --accent:#238636; --accent-hover:#2ea043; }
-    * { box-sizing: border-box; }
-    body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--text); font-family:'Segoe UI', system-ui, sans-serif; }
-    .card { width:min(92vw, 390px); background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:34px; box-shadow:0 18px 50px #0009; }
-    .mark { width:46px; height:46px; display:grid; place-items:center; border-radius:12px; background:#1f6feb1f; color:#58a6ff; font-size:25px; font-weight:700; margin-bottom:22px; }
-    h1 { margin:0 0 8px; font-size:26px; letter-spacing:-.4px; }
-    p { color:var(--muted); font-size:13px; line-height:1.6; margin:0 0 24px; }
-    label { display:block; margin:14px 0 7px; color:#b7c3cc; font-size:12px; }
-    input { width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:7px; background:#0d1117; color:#fff; font:inherit; }
-    input:focus { outline:2px solid #1f6feb; border-color:transparent; }
-    button { width:100%; margin-top:22px; padding:11px; border:0; border-radius:7px; background:var(--accent); color:#fff; font-weight:700; cursor:pointer; }
-    button:hover { background:var(--accent-hover); }
-    button:disabled { opacity:.55; cursor:not-allowed; }
-    .error { color:#f85149; font-size:12px; min-height:18px; margin-top:14px; }
+    /* ============ THEME VARIABLES ============ */
+    :root {
+      /* Light Mode */
+      --bg: #f8f9fa;
+      --bg-secondary: #ffffff;
+      --panel: #ffffff;
+      --line: #e2e8f0;
+      --text: #1a202c;
+      --text-secondary: #64748b;
+      --muted: #94a3b8;
+      --accent: #2c5aa0;
+      --accent-hover: #1e4280;
+      --accent-light: #3b82f6;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      --shadow-hover: 0 12px 24px rgba(0, 0, 0, 0.12);
+      --success: #16a34a;
+      --error: #dc2626;
+      --warning: #ea580c;
+      color-scheme: light;
+    }
+
+    /* Dark Mode */
+    [data-theme="dark"] {
+      --bg: #0f1419;
+      --bg-secondary: #1a1f27;
+      --panel: #1a1f27;
+      --line: #2a3138;
+      --text: #e4e9ec;
+      --text-secondary: #a8b3ba;
+      --muted: #7a8595;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-light: #60a5fa;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      --shadow-hover: 0 12px 24px rgba(0, 0, 0, 0.4);
+      --success: #22c55e;
+      --error: #ef4444;
+      --warning: #f97316;
+      color-scheme: dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+
+    /* ============ THEME TOGGLE BUTTON ============ */
+    .theme-toggle {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      transition: all 0.3s ease;
+      box-shadow: var(--shadow);
+      z-index: 1000;
+    }
+
+    .theme-toggle:hover {
+      background: var(--bg-secondary);
+      color: var(--accent);
+      transform: scale(1.05);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .theme-toggle:active {
+      transform: scale(0.95);
+    }
+
+    .theme-toggle svg {
+      width: 20px;
+      height: 20px;
+      display: block;
+    }
+
+    /* ============ MAIN LAYOUT ============ */
+    .login-container {
+      width: 100%;
+      max-width: 460px;
+      padding: 24px;
+    }
+
+    .login-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 48px 42px;
+      box-shadow: var(--shadow);
+      transition: all 0.3s ease;
+    }
+
+    .login-card:hover {
+      box-shadow: var(--shadow-hover);
+    }
+
+    /* ============ LOGO & BRANDING ============ */
+    .logo-mark {
+      width: 56px;
+      height: 56px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      color: #ffffff;
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 28px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+    }
+
+    .logo-mark:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    }
+
+    /* ============ TYPOGRAPHY ============ */
+    h1 {
+      margin: 0 0 8px;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.8px;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 0 0 32px;
+      font-weight: 400;
+    }
+
+    /* ============ FORM ELEMENTS ============ */
+    .form-group {
+      margin-bottom: 24px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--bg-secondary);
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      transition: all 0.2s ease;
+    }
+
+    input::placeholder {
+      color: var(--muted);
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(44, 90, 160, 0.1);
+      background: var(--bg-secondary);
+    }
+
+    [data-theme="dark"] input:focus {
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    /* ============ BUTTON ============ */
+    .btn-submit {
+      width: 100%;
+      margin-top: 32px;
+      padding: 14px 16px;
+      border: 0;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(44, 90, 160, 0.2);
+    }
+
+    .btn-submit:hover:not(:disabled) {
+      background: linear-gradient(135deg, var(--accent-hover), var(--accent));
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(44, 90, 160, 0.3);
+    }
+
+    .btn-submit:active:not(:disabled) {
+      transform: translateY(0);
+      box-shadow: 0 2px 8px rgba(44, 90, 160, 0.2);
+    }
+
+    .btn-submit:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* ============ ERROR MESSAGE ============ */
+    .error-message {
+      color: var(--error);
+      font-size: 13px;
+      min-height: 20px;
+      margin-top: 16px;
+      padding: 12px 14px;
+      background: rgba(220, 38, 38, 0.08);
+      border-radius: 6px;
+      border-left: 3px solid var(--error);
+      line-height: 1.5;
+      display: none;
+    }
+
+    .error-message.show {
+      display: block;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ============ FOOTER TEXT ============ */
+    .login-footer {
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* ============ RESPONSIVE DESIGN ============ */
+    @media (max-width: 480px) {
+      .theme-toggle {
+        top: 16px;
+        right: 16px;
+        width: 40px;
+        height: 40px;
+      }
+
+      .login-container {
+        padding: 16px;
+      }
+
+      .login-card {
+        padding: 36px 24px;
+      }
+
+      h1 {
+        font-size: 28px;
+      }
+
+      .subtitle {
+        font-size: 13px;
+      }
+
+      .btn-submit {
+        margin-top: 24px;
+        padding: 12px 14px;
+        font-size: 13px;
+      }
+    }
+
+    /* ============ ACCESSIBILITY ============ */
+    input:focus-visible {
+      outline: none;
+    }
+
+    .theme-toggle:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
   </style>
 </head>
 <body>
-  <form class="card" id="login-form">
-    <div class="mark">CR</div>
-    <h1>Cyber Range</h1>
-    <p>Sign in to open the student or instructor workspace.</p>
-    <label for="username">Username</label>
-    <input id="username" name="username" autocomplete="username" required />
-    <label for="password">Password</label>
-    <input id="password" name="password" type="password" autocomplete="current-password" required />
-    <button id="submit" type="submit">Sign in</button>
-    <div class="error" id="error" role="alert"></div>
-  </form>
+  <!-- Theme Toggle Button -->
+  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle theme">
+    <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <!-- Sun icon -->
+      <circle cx="12" cy="12" r="5" class="sun-circle"></circle>
+      <line x1="12" y1="1" x2="12" y2="3" class="sun-ray"></line>
+      <line x1="12" y1="21" x2="12" y2="23" class="sun-ray"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" class="sun-ray"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" class="sun-ray"></line>
+      <line x1="1" y1="12" x2="3" y2="12" class="sun-ray"></line>
+      <line x1="21" y1="12" x2="23" y2="12" class="sun-ray"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" class="sun-ray"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" class="sun-ray"></line>
+    </svg>
+  </button>
+
+  <!-- Login Form Container -->
+  <div class="login-container">
+    <div class="login-card">
+      <!-- Logo -->
+      <div class="logo-mark">CR</div>
+
+      <!-- Heading -->
+      <h1>Cyber Range</h1>
+      <p class="subtitle">Sign in to access your student or instructor workspace.</p>
+
+      <!-- Login Form -->
+      <form id="login-form">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input
+            id="username"
+            name="username"
+            type="text"
+            autocomplete="username"
+            placeholder="Enter your username"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Enter your password"
+            required
+          />
+        </div>
+
+        <!-- Error Message -->
+        <div class="error-message" id="error" role="alert"></div>
+
+        <!-- Submit Button -->
+        <button id="submit" class="btn-submit" type="submit">Sign in</button>
+      </form>
+
+      <!-- Footer -->
+      <div class="login-footer">
+        Contact your administrator for access or password reset assistance.
+      </div>
+    </div>
+  </div>
+
+  <!-- Theme Toggle Script -->
   <script>
+    // Theme management
+    const themeToggle = document.getElementById('theme-toggle');
+    const html = document.documentElement;
+    const THEME_STORAGE_KEY = 'cyberpod-login-theme';
+
+    function initTheme() {
+      const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+      applyTheme(theme);
+    }
+
+    function applyTheme(theme) {
+      if (theme === 'dark') {
+        html.setAttribute('data-theme', 'dark');
+        localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+      } else {
+        html.removeAttribute('data-theme');
+        localStorage.setItem(THEME_STORAGE_KEY, 'light');
+      }
+    }
+
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      applyTheme(newTheme);
+    });
+
+    // Initialize theme on page load
+    initTheme();
+
+    // Login form handling
     const form = document.getElementById('login-form');
     const errorBox = document.getElementById('error');
     const submitButton = document.getElementById('submit');
+
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       errorBox.textContent = '';
+      errorBox.classList.remove('show');
       submitButton.disabled = true;
+
       try {
         const response = await fetch('/login', {
           method: 'POST',
@@ -51,11 +443,18 @@
             password: document.getElementById('password').value,
           }),
         });
+
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error?.message || 'Sign in failed.');
+
+        if (!response.ok) {
+          throw new Error(data.error?.message || 'Sign in failed.');
+        }
+
+        // Redirect on successful login
         window.location.assign('/app');
       } catch (error) {
         errorBox.textContent = error.message;
+        errorBox.classList.add('show');
       } finally {
         submitButton.disabled = false;
       }
