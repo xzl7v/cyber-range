@@ -14,7 +14,8 @@ const dockerSocket = process.env.DOCKER_SOCKET || '/var/run/docker.sock';
 const runtimeContainerId = process.env.RUNTIME_CONTAINER_ID || hostname();
 const sessionTtlMs = Number(process.env.CYBER_RANGE_SESSION_TTL_MS || 4 * 60 * 60 * 1000);
 const kaliImage = process.env.CYBER_RANGE_KALI_IMAGE || '';
-const vncPassword = process.env.CYBER_RANGE_VNC_PASSWORD || randomUUID();
+const vncPassword = String(process.env.CYBER_RANGE_VNC_PASSWORD || '');
+if (vncPassword.length < 6) throw new Error('CYBER_RANGE_VNC_PASSWORD must be at least 6 characters.');
 const kasmAuthorization = `Basic ${Buffer.from(`kasm_user:${vncPassword}`).toString('base64')}`;
 async function loadDefinitions() {
   const fallback = JSON.parse(await readFile(process.env.CYBER_RANGE_LAB_DEFINITIONS || join(moduleDirectory, 'lab-definitions.json'), 'utf8'));
@@ -147,9 +148,34 @@ async function waitForHealthy(id, timeoutMs = 120000) {
   }
   throw new Error('Timed out waiting for the training target to become healthy.');
 }
-async function waitForPort(host, portNumber, timeoutMs = 60000) {
+function decodeDockerLogs(value) {
+  const buffer = Buffer.isBuffer(value) ? value : Buffer.from(value);
+  const chunks = [];
+  let offset = 0;
+  while (offset + 8 <= buffer.length) {
+    const length = buffer.readUInt32BE(offset + 4);
+    if (offset + 8 + length > buffer.length) break;
+    chunks.push(buffer.subarray(offset + 8, offset + 8 + length).toString());
+    offset += 8 + length;
+  }
+  return chunks.length ? chunks.join('') : buffer.toString();
+}
+async function waitForPort(containerId, host, portNumber, timeoutMs = 60000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    const containerInfo = await containerById(containerId);
+    if (!containerInfo) throw new Error('Kali container disappeared before Kasm became ready.');
+    if (!containerInfo.State?.Running) {
+      let recentLogs = '';
+      try {
+        recentLogs = decodeDockerLogs(await docker.getContainer(containerId).logs({ stdout: true, stderr: true, tail: 20 }))
+          .replace(/[^\t\n\r\x20-\x7E]/g, '')
+          .trim()
+          .slice(-2000);
+      } catch { /* Container logs may be unavailable during cleanup. */ }
+      const logDetail = recentLogs ? `\nRecent Kali logs:\n${recentLogs}` : '';
+      throw new Error(`Kali container exited before Kasm became ready. Exit code: ${containerInfo.State?.ExitCode ?? 'unknown'}.${logDetail}`);
+    }
     const reachable = await new Promise((resolvePromise) => {
       const socket = createConnection({ host, port: portNumber, timeout: 1500 });
       socket.once('connect', () => { socket.destroy(); resolvePromise(true); });
@@ -185,6 +211,7 @@ async function cleanupOrphanedSessions() {
 async function startContainers(session) {
   for (const target of session.targets || []) await docker.getContainer(target.containerId).start();
   await docker.getContainer(session.kaliContainerId).start();
+  await waitForPort(session.kaliContainerId, session.kaliProxyHost, 6901);
   for (const target of session.targets || []) await waitForHealthy(target.containerId);
 }
 async function createSession(input) {
@@ -218,7 +245,7 @@ async function createSession(input) {
     kaliContainerName: `cybr-kali-${safe}`,
     kaliContainerId: '',
     kaliProxyPort: 0,
-    kaliUrl: `/sessions/${sessionId}/kali/?autoclose=1&username=user&password=StudentSecure2026!`,
+    kaliUrl: `/sessions/${sessionId}/kali/?autoclose=1`,
     targets: [],
   };
   sessions.set(sessionId, session);
@@ -298,7 +325,6 @@ async function createSession(input) {
     session.status = 'STARTING';
     console.log(`Starting containers for session ${sessionId}.`);
     await startContainers(session);
-    await waitForPort(session.kaliProxyHost, session.kaliProxyPort);
     session.status = 'RUNNING';
     console.log(`Session ${sessionId} is running.`);
     return session;
