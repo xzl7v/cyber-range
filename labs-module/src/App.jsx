@@ -357,6 +357,33 @@ function AttemptWorkspace({ id, api, runtimeApi, busy, run, navigate }) {
     catch (error) { sessionResource.update({ session: { ...session, runtimeError: error.message } }) }
   }
   const runtimeLoading = sessionResource.loading && Boolean(runtimeApi)
+  const [kaliFullscreen, setKaliFullscreen] = useState(false)
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      const active = Boolean(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement)
+      setKaliFullscreen(active)
+    }
+    const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange']
+    for (const eventName of events) document.addEventListener(eventName, syncFullscreenState)
+    return () => {
+      for (const eventName of events) document.removeEventListener(eventName, syncFullscreenState)
+    }
+  }, [])
+
+  async function toggleKaliFullscreen() {
+    const shell = document.getElementById('kali-runtime-shell')
+    if (!shell) return
+    const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement
+    if (!fullscreenElement) {
+      const requestFullscreen = shell.requestFullscreen || shell.webkitRequestFullscreen || shell.mozRequestFullScreen
+      if (requestFullscreen) await requestFullscreen.call(shell)
+      return
+    }
+    const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen
+    if (exitFullscreen) await exitFullscreen.call(document)
+  }
+
   return <><BackButton navigate={navigate}/><Alert error={resource.error} onRetry={resource.refresh}/><Alert error={sessionResource.error} onRetry={sessionResource.refresh}/>{resource.loading ? <Loading label="Opening your workspace…"/> : attempt && <>
     <div className="page-heading workspace-heading"><div><div className="eyebrow">YOUR LAB WORKSPACE</div><h1>{attempt.lab.name}</h1><p>{attempt.lab.description}</p></div><span className={`chip ${progress.completed ? 'chip-green' : 'chip-teal'}`}><i/>{progress.completed ? 'Completed' : 'In progress'}</span></div>
     <div className="attempt-progress" data-testid="attempt-progress"><div className="progress-stat"><span>Points earned</span><strong>{progress.earnedScore} <small>/ {progress.totalScore}</small></strong></div><div className="progress-stat"><span>Tasks completed</span><strong>{progress.completedTasks} <small>/ {progress.totalTasks}</small></strong></div><div className="progress-meter"><div><span>Progress</span><strong>{progress.percent}%</strong></div><div className="progress-track" role="progressbar" aria-label="Lab progress" aria-valuenow={progress.percent} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${progress.percent}%` }}/></div><small>Saved automatically as you complete tasks</small></div></div>
@@ -364,8 +391,11 @@ function AttemptWorkspace({ id, api, runtimeApi, busy, run, navigate }) {
     {runtimeApi && <section className="content-panel runtime-panel">
       <div className="panel-heading"><Icon name="target"/><h2>Practice environment</h2>{session && <span className={`chip ${session.status === 'RUNNING' ? 'chip-green' : session.status === 'FAILED' ? 'chip-red' : 'chip-amber'}`}><i/>{session.status || 'Unknown'}</span>}</div>
       {runtimeLoading ? <Loading label="Preparing your isolated environment…"/> : session?.runtimeError ? <div className="notice notice-error" role="alert"><Icon name="alert"/><span>{session.runtimeError}</span><button className="button secondary small" onClick={sessionResource.refresh}>Retry</button></div> : session ? <div className="runtime-body">
-        <div className="runtime-actions"><span className="muted">{session.targetName ? `Target: ${session.targetName}` : 'Kali workspace'}</span><div><button className="button secondary small" disabled={busy || session.status === 'STOPPED'} onClick={stopEnvironment}>{session.status === 'STOPPED' ? 'Stopped' : 'Stop environment'}</button><button className="button danger small" disabled={busy} onClick={endLab}>End lab & clean up</button></div></div>
-        {session.status === 'RUNNING' && session.kaliUrl && <iframe className="kali-frame" src={session.kaliUrl} title="Kali Linux desktop" allow="clipboard-read; clipboard-write" />}
+        <div className="runtime-actions"><span className="muted">{session.targetName ? `Target: ${session.targetName}` : 'Kali workspace'}</span><div><button type="button" className="button secondary small" disabled={busy || session.status === 'STOPPED'} onClick={stopEnvironment}>{session.status === 'STOPPED' ? 'Stopped' : 'Stop environment'}</button><button type="button" className="button secondary small fullscreen-toggle" disabled={busy || session.status !== 'RUNNING'} onClick={toggleKaliFullscreen} aria-label={kaliFullscreen ? 'Exit fullscreen mode' : 'Enter fullscreen mode'}>{kaliFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</button><button type="button" className="button danger small" disabled={busy} onClick={endLab}>End lab & clean up</button></div></div>
+        {session.status === 'RUNNING' && session.kaliUrl && <div id="kali-runtime-shell" className={`kali-runtime-shell${kaliFullscreen ? ' is-fullscreen' : ''}`}>
+          <button type="button" className="kali-fullscreen-button" onClick={toggleKaliFullscreen} aria-label={kaliFullscreen ? 'Exit fullscreen mode' : 'Enter fullscreen mode'}>{kaliFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</button>
+          <iframe className="kali-frame" src={session.kaliUrl} title="Kali Linux desktop" allow="clipboard-read; clipboard-write" />
+        </div>}
         {session.status !== 'RUNNING' && <div className="runtime-placeholder"><Icon name="target" size={34}/><p>Your environment is {String(session.status).toLowerCase()}. {session.status === 'STOPPED' ? 'Start the lab again to resume, or end it to remove its containers.' : 'It should become ready shortly.'}</p></div>}
       </div> : <p className="muted">No practice environment has been started yet.</p>}
     </section>}
