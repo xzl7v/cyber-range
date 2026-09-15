@@ -2,7 +2,7 @@
   "hydra": {
     "id": "hydra",
     "name": "Hydra SSH Training Lab",
-    "kaliImage": "cyber-range/kali-optimized:v4",
+    "kaliImage": "cyber-range/kali-optimized:v5",
     "targets": [
       {
         "name": "target",
@@ -24,7 +24,7 @@
   "dvwa": {
     "id": "dvwa",
     "name": "DVWA Web Security Lab",
-    "kaliImage": "cyber-range/kali-optimized:v4",
+    "kaliImage": "cyber-range/kali-optimized:v5",
     "targets": [
       {
         "name": "dvwa",
@@ -40,7 +40,7 @@
   "default": {
     "id": "default",
     "name": "Isolated Kali Practice Lab",
-    "kaliImage": "cyber-range/kali-optimized:v4",
+    "kaliImage": "cyber-range/kali-optimized:v5",
     "targets": [],
     "resourceLimits": {
       "kali": { "memory": 2147483648, "nanoCpus": 2000000000 }

@@ -61,16 +61,38 @@ function fail(status, code, message, fields) {
   error.fields = fields;
   return error;
 }
-async function optionalGpuConfig() {
+async function optionalGpuConfig(imageName) {
   if (gpuMode === 'disabled' || gpuMode === 'off' || gpuMode === 'false') return null;
   if (!gpuConfigPromise) {
     gpuConfigPromise = docker.info().then((info) => {
       if (!info.Runtimes?.nvidia) return null;
-      return {
+      const config = {
         runtime: 'nvidia',
         deviceRequests: [{ Driver: 'nvidia', Count: -1, Capabilities: [['gpu']] }],
         environment: ['NVIDIA_VISIBLE_DEVICES=all', 'NVIDIA_DRIVER_CAPABILITIES=compute,graphics,video,utility'],
       };
+      return docker.createContainer({
+        Image: imageName,
+        Entrypoint: ['/bin/sh'],
+        Cmd: ['-lc', 'test -e /dev/dri/renderD128 && test -r /dev/dri/renderD128 && test -w /dev/dri/renderD128'],
+        HostConfig: { Runtime: config.runtime, DeviceRequests: config.deviceRequests },
+      }).then(async (probe) => {
+        try {
+          await probe.start();
+          let result = false;
+          for (let attempt = 0; attempt < 50; attempt += 1) {
+            await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
+            const state = await containerById(probe.id);
+            if (!state?.State?.Running) {
+              result = state?.State?.ExitCode === 0;
+              break;
+            }
+          }
+          return result ? config : null;
+        } finally {
+          try { await probe.remove({ force: true }); } catch { /* Probe cleanup is best effort. */ }
+        }
+      });
     }).catch(() => null);
   }
   return gpuConfigPromise;
@@ -209,10 +231,45 @@ async function cleanupOrphanedSessions() {
   if (containers.length || networks.length) console.log(`Removed ${containers.length} orphaned session containers and ${networks.length} networks.`);
 }
 async function startContainers(session) {
-  for (const target of session.targets || []) await docker.getContainer(target.containerId).start();
+  for (const target of session.targets || []) {
+    const info = await containerById(target.containerId);
+    if (!info?.State?.Running) await docker.getContainer(target.containerId).start();
+  }
   await docker.getContainer(session.kaliContainerId).start();
   await waitForPort(session.kaliContainerId, session.kaliProxyHost, 6901);
   for (const target of session.targets || []) await waitForHealthy(target.containerId);
+}
+async function createKaliContainer(session, imageName, resourceLimits, gpu) {
+  const container = await docker.createContainer({
+    name: session.kaliContainerName,
+    Image: imageName,
+    Hostname: `kali-${safePart(session.id)}`,
+    ExposedPorts: { '6901/tcp': {} },
+    Env: [
+      `VNC_PW=${vncPassword}`,
+      `KASM_SVC_USER_PASSWORD=${vncPassword}`,
+      'NO_auth=1', 'KASM_SVC_AUDIO=0', 'KASM_SVC_AUDIO_INPUT=0',
+      'KASM_SVC_GAMEPAD=0', 'KASM_SVC_PRINTER=0', 'KASM_SVC_RECORDER=0', 'KASM_SVC_WEBCAM=0',
+      'VNC_RESOLUTION=1280x720', 'MAX_FRAME_RATE=30',
+      'VNCOPTIONS=-PreferBandwidth -DynamicQualityMin=4 -DynamicQualityMax=7 -IgnoreClientSettingsKasm 1 -AcceptSetDesktopSize 0 -PublicIP 127.0.0.1 -DLP_ClipDelay=0',
+      ...(gpu ? ['HW3D=1', 'DRINODE=/dev/dri/renderD128', ...gpu.environment] : []),
+    ],
+    HostConfig: {
+      NetworkMode: session.networkName,
+      ShmSize: 2147483648,
+      Memory: resourceLimits?.memory || 2147483648,
+      NanoCpus: resourceLimits?.nanoCpus || 2000000000,
+      RestartPolicy: { Name: 'no' },
+      SecurityOpt: ['no-new-privileges'],
+      ...(gpu ? { Runtime: gpu.runtime, DeviceRequests: gpu.deviceRequests } : {}),
+    },
+    Labels: { 'cyber-range.session': session.id, 'cyber-range.attempt': session.attemptId, 'cyber-range.role': 'kali' },
+  });
+  session.kaliContainerId = container.id;
+  const info = await container.inspect();
+  session.kaliProxyHost = info.NetworkSettings?.Networks?.[session.networkName]?.IPAddress || session.kaliContainerName;
+  session.kaliProxyPort = 6901;
+  session.gpu = Boolean(gpu);
 }
 async function createSession(input) {
   const attemptId = String(input.attemptId || '').trim();
@@ -229,7 +286,6 @@ async function createSession(input) {
     await cleanupContainers(existing);
   }
   const definition = definitionFor(labSlug);
-  const gpu = await optionalGpuConfig();
   const sessionId = randomUUID();
   const safe = safePart(sessionId);
   const session = {
@@ -261,6 +317,7 @@ async function createSession(input) {
     await docker.getNetwork(session.networkName).connect({ Container: runtimeContainerId });
     const kaliImageName = kaliImage || definition.kaliImage;
     await ensureImage(kaliImageName, definition.kaliBuild);
+    let gpu = await optionalGpuConfig(kaliImageName);
     session.targets = await Promise.all((definition.targets || []).map(async (targetDefinition, index) => {
       const targetName = targetDefinition.name || `target-${index + 1}`;
       await ensureImage(targetDefinition.image, targetDefinition.build);
@@ -286,45 +343,19 @@ async function createSession(input) {
       });
       return { name: targetName, containerId: container.id };
     }));
-    const kaliContainer = await docker.createContainer({
-      name: session.kaliContainerName,
-      Image: kaliImageName,
-      Hostname: `kali-${safe}`,
-      ExposedPorts: { '6901/tcp': {} },
-      Env: [
-        `VNC_PW=${vncPassword}`,
-        `KASM_SVC_USER_PASSWORD=${vncPassword}`,
-        'NO_auth=1',
-        'KASM_SVC_AUDIO=0',
-        'KASM_SVC_AUDIO_INPUT=0',
-        'KASM_SVC_GAMEPAD=0',
-        'KASM_SVC_PRINTER=0',
-        'KASM_SVC_RECORDER=0',
-        'KASM_SVC_WEBCAM=0',
-        'VNC_RESOLUTION=1280x720',
-        'MAX_FRAME_RATE=30',
-        'VNCOPTIONS=-PreferBandwidth -DynamicQualityMin=4 -DynamicQualityMax=7 -IgnoreClientSettingsKasm 1 -AcceptSetDesktopSize 0 -PublicIP 127.0.0.1 -DLP_ClipDelay=0',
-        ...(gpu ? ['HW3D=1', 'DRINODE=/dev/dri/renderD128', ...gpu.environment] : []),
-      ],
-      HostConfig: {
-        NetworkMode: session.networkName,
-        ShmSize: 2147483648,
-        Memory: definition.resourceLimits?.kali?.memory || 2147483648,
-        NanoCpus: definition.resourceLimits?.kali?.nanoCpus || 2000000000,
-        RestartPolicy: { Name: 'no' },
-        SecurityOpt: ['no-new-privileges'],
-        ...(gpu ? { Runtime: gpu.runtime, DeviceRequests: gpu.deviceRequests } : {}),
-      },
-      Labels: { 'cyber-range.session': sessionId, 'cyber-range.attempt': attemptId, 'cyber-range.role': 'kali' },
-    });
-    session.kaliContainerId = kaliContainer.id;
-    const kaliInfo = await kaliContainer.inspect();
-    session.kaliProxyHost = kaliInfo.NetworkSettings?.Networks?.[session.networkName]?.IPAddress || session.kaliContainerName;
-    session.kaliProxyPort = 6901;
-    session.gpu = Boolean(gpu);
+    await createKaliContainer(session, kaliImageName, definition.resourceLimits?.kali, gpu);
     session.status = 'STARTING';
     console.log(`Starting containers for session ${sessionId}.`);
-    await startContainers(session);
+    try {
+      await startContainers(session);
+    } catch (error) {
+      if (!gpu || gpuMode !== 'auto') throw error;
+      console.warn(`GPU startup failed for session ${sessionId}; retrying with software rendering: ${error.message}`);
+      await removeContainer(session.kaliContainerId);
+      gpu = null;
+      await createKaliContainer(session, kaliImageName, definition.resourceLimits?.kali, gpu);
+      await startContainers(session);
+    }
     session.status = 'RUNNING';
     console.log(`Session ${sessionId} is running.`);
     return session;

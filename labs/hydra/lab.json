@@ -12,7 +12,7 @@
   "instructions": "Start the lab to open your isolated Kali desktop. From the Kali terminal, identify the target named target, then use Hydra against its SSH service. The training user is trainee. Submit the discovered password below.",
   "enabled": true,
   "published": true,
-  "kaliImage": "cyber-range/kali-optimized:v4",
+  "kaliImage": "cyber-range/kali-optimized:v5",
   "kaliBuild": {
     "context": "/app/labs/kali",
     "dockerfile": "Dockerfile",
