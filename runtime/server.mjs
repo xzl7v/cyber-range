@@ -250,8 +250,8 @@ async function createKaliContainer(session, imageName, resourceLimits, gpu) {
       `KASM_SVC_USER_PASSWORD=${vncPassword}`,
       'NO_auth=1', 'KASM_SVC_AUDIO=0', 'KASM_SVC_AUDIO_INPUT=0',
       'KASM_SVC_GAMEPAD=0', 'KASM_SVC_PRINTER=0', 'KASM_SVC_RECORDER=0', 'KASM_SVC_WEBCAM=0',
-      'VNC_RESOLUTION=1152x648', 'MAX_FRAME_RATE=20',
-      'VNCOPTIONS=-PreferBandwidth -DynamicQualityMin=3 -DynamicQualityMax=5 -IgnoreClientSettingsKasm 1 -AcceptSetDesktopSize 0 -PublicIP 127.0.0.1 -DLP_ClipDelay=0',
+      'VNC_RESOLUTION=1152x648', 'MAX_FRAME_RATE=30',
+     'VNCOPTIONS=-DynamicQualityMin=4 -DynamicQualityMax=7 -IgnoreClientSettingsKasm 1 -AcceptSetDesktopSize 0 -PublicIP 127.0.0.1 -DLP_ClipDelay=0',   
       ...(gpu ? ['HW3D=1', 'DRINODE=/dev/dri/renderD128', ...gpu.environment] : []),
     ],
     HostConfig: {
