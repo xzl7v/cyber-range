@@ -37,4 +37,7 @@ RUN apt-get update \
 
 COPY kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
 
+RUN printf '%s\n' '[Desktop Entry]' 'Type=Application' 'Hidden=true' > /etc/xdg/autostart/xfce4-power-manager.desktop \
+	&& printf '%s\n' '[Desktop Entry]' 'Type=Application' 'Hidden=true' > /etc/xdg/autostart/xfce4-screensaver.desktop
+
 USER 1000

@@ -1,7 +1,7 @@
 desktop:
   resolution:
-    width: 1280
-    height: 720
+    width: 1152
+    height: 648
   allow_resize: false
   pixel_depth: 24
 
@@ -22,10 +22,10 @@ runtime_configuration:
   allow_override_list: []
 
 encoding:
-  max_frame_rate: 30
+  max_frame_rate: 20
   rect_encoding_mode:
-    min_quality: 4
-    max_quality: 7
+    min_quality: 3
+    max_quality: 5
     consider_lossless_quality: 10
 
 logging:
