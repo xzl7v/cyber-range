@@ -53,6 +53,12 @@ services:
       - PORT=3001
       - DOCKER_SOCKET=/var/run/docker.sock
       - CYBER_RANGE_LAB_DEFINITIONS=/app/lab-definitions.json
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 4G
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     extra_hosts:
