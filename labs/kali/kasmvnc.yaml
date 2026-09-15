@@ -22,10 +22,10 @@ runtime_configuration:
   allow_override_list: []
 
 encoding:
-  max_frame_rate: 60
+  max_frame_rate: 30
   rect_encoding_mode:
-    min_quality: 5
-    max_quality: 8
+    min_quality: 4
+    max_quality: 7
     consider_lossless_quality: 10
 
 logging:
